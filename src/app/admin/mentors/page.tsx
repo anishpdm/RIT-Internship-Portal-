@@ -6,6 +6,7 @@ import { PageHeader, EmptyState } from '@/components/ui';
 import { logAudit } from '@/lib/audit';
 import { UserPlus, Trash2 } from 'lucide-react';
 import ResetPasswordButton from '@/components/ResetPasswordButton';
+import ConfirmDeleteButton from '@/components/ConfirmDeleteButton';
 
 export const dynamic = 'force-dynamic';
 
@@ -183,12 +184,15 @@ export default async function MentorsPage() {
                         userName={m.full_name ?? m.email}
                         action={resetMentorPassword}
                       />
-                      <form action={deleteMentor}>
-                        <input type="hidden" name="id" value={m.id} />
-                        <button className="btn btn-ghost text-xs" type="submit">
-                          <Trash2 size={12} /> Remove
-                        </button>
-                      </form>
+                      <ConfirmDeleteButton
+                        action={deleteMentor}
+                        fields={[{ name: 'id', value: m.id }]}
+                        itemName={m.full_name ?? m.email}
+                        itemType="mentor"
+                        warning="Their mentor assignments will be removed. Internships, sessions, and assignments they created stay intact."
+                        buttonLabel=" Remove"
+                        buttonClass="btn btn-ghost text-xs"
+                      />
                     </div>
                   </td>
                 </tr>

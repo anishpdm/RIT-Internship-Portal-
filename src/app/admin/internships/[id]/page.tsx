@@ -6,6 +6,7 @@ import { PageHeader, Pill, Stat } from '@/components/ui';
 import { logAudit } from '@/lib/audit';
 import { formatDate } from '@/lib/utils';
 import { TrendingUp, Pencil, Upload, Trash2 } from 'lucide-react';
+import ConfirmDeleteButton from '@/components/ConfirmDeleteButton';
 
 async function updateInternshipStatus(formData: FormData) {
   'use server';
@@ -205,16 +206,15 @@ export default async function InternshipDetailPage({
             >
               <Upload size={14} /> Import CSV
             </Link>
-            <form action={deleteInternship}>
-              <input type="hidden" name="id" value={internship.id} />
-              <button
-                type="submit"
-                className="btn btn-danger"
-                title="Delete this internship"
-              >
-                <Trash2 size={14} /> Delete
-              </button>
-            </form>
+            <ConfirmDeleteButton
+              action={deleteInternship}
+              fields={[{ name: 'id', value: internship.id }]}
+              itemName={internship.title}
+              itemType="internship"
+              warning="All levels, enrolments, sessions, assignments, submissions, attendance, and materials for this internship will be permanently lost."
+              buttonLabel=" Delete"
+              buttonClass="btn btn-danger"
+            />
           </>
         }
       />

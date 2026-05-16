@@ -6,6 +6,7 @@ import { PageHeader, Pill, EmptyState } from '@/components/ui';
 import { logAudit } from '@/lib/audit';
 import { Search, UserPlus, Trash2 } from 'lucide-react';
 import ResetPasswordButton from '@/components/ResetPasswordButton';
+import ConfirmDeleteButton from '@/components/ConfirmDeleteButton';
 
 export const dynamic = 'force-dynamic';
 
@@ -224,12 +225,15 @@ export default async function StudentsPage({
                         userName={s.full_name ?? s.email}
                         action={resetStudentPassword}
                       />
-                      <form action={deleteStudent}>
-                        <input type="hidden" name="id" value={s.id} />
-                        <button className="btn btn-ghost text-xs" type="submit">
-                          <Trash2 size={12} />
-                        </button>
-                      </form>
+                      <ConfirmDeleteButton
+                        action={deleteStudent}
+                        fields={[{ name: 'id', value: s.id }]}
+                        itemName={s.full_name ?? s.email}
+                        itemType="student"
+                        warning="The account, all submissions, attendance records, and enrolments will be removed."
+                        iconOnly
+                        buttonClass="btn btn-ghost text-xs"
+                      />
                     </div>
                   </td>
                 </tr>

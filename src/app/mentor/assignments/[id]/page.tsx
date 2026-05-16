@@ -9,6 +9,7 @@ import { formatDateTime } from '@/lib/utils';
 import { ArrowLeft, Trash2, ExternalLink } from 'lucide-react';
 import PrintButton from '@/components/PrintButton';
 import PrintHeader from '@/components/PrintHeader';
+import ConfirmDeleteButton from '@/components/ConfirmDeleteButton';
 
 export const dynamic = 'force-dynamic';
 
@@ -177,12 +178,17 @@ export default async function MentorAssignmentDetailPage({ params }: { params: {
         </div>
       ) : <EmptyState title="No submissions yet" />}
 
-      <form action={deleteAssignment} className="mt-10">
-        <input type="hidden" name="id" value={assignment.id} />
-        <button type="submit" className="btn btn-danger text-sm">
-          <Trash2 size={14} /> Delete assignment
-        </button>
-      </form>
+      <div className="mt-10">
+        <ConfirmDeleteButton
+          action={deleteAssignment}
+          fields={[{ name: 'id', value: assignment.id }]}
+          itemName={assignment.title}
+          itemType="assignment"
+          warning="All submissions, scores, and feedback for this assignment will be permanently deleted."
+          buttonLabel=" Delete assignment"
+          buttonClass="btn btn-danger text-sm"
+        />
+      </div>
     </>
   );
 }

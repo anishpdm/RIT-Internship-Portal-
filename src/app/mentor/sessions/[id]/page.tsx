@@ -7,6 +7,7 @@ import { logAudit } from '@/lib/audit';
 import { PageHeader, Pill, EmptyState } from '@/components/ui';
 import { formatDateTime } from '@/lib/utils';
 import { ArrowLeft, Trash2, FileText, Link as LinkIcon, Pencil } from 'lucide-react';
+import ConfirmDeleteButton from '@/components/ConfirmDeleteButton';
 import LiveCodePanel from '@/app/admin/sessions/[id]/LiveCodePanel';
 
 export const dynamic = 'force-dynamic';
@@ -203,13 +204,17 @@ export default async function MentorSessionDetailPage({
                         className="text-xs truncate block link">{m.link_url}</a>
                     )}
                   </div>
-                  <form action={deleteMaterial}>
-                    <input type="hidden" name="id" value={m.id} />
-                    <input type="hidden" name="session_id" value={session.id} />
-                    <button type="submit" className="btn btn-ghost text-sm">
-                      <Trash2 size={14} />
-                    </button>
-                  </form>
+                  <ConfirmDeleteButton
+                    action={deleteMaterial}
+                    fields={[
+                      { name: 'id', value: m.id },
+                      { name: 'session_id', value: session.id },
+                    ]}
+                    itemName={m.title}
+                    itemType="material"
+                    iconOnly
+                    buttonClass="btn btn-ghost text-sm"
+                  />
                 </div>
               ))}
             </div>

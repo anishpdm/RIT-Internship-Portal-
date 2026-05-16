@@ -7,6 +7,7 @@ import { logAudit } from '@/lib/audit';
 import { PageHeader } from '@/components/ui';
 import DateTimeField from '@/components/DateTimeField';
 import { ArrowLeft } from 'lucide-react';
+import ConfirmDeleteButton from '@/components/ConfirmDeleteButton';
 
 export const dynamic = 'force-dynamic';
 
@@ -210,19 +211,23 @@ export default async function EditSessionPage({
           Required for level progression
         </label>
 
-        <div className="flex justify-between items-center pt-2">
-          <form action={deleteSession}>
-            <input type="hidden" name="id" value={session.id} />
-            <button type="submit" className="btn btn-danger text-sm">
-              Delete session
-            </button>
-          </form>
-          <div className="flex gap-2">
-            <Link href={`/admin/sessions/${params.id}`} className="btn btn-ghost">Cancel</Link>
-            <button type="submit" className="btn btn-primary">Save changes</button>
-          </div>
+        <div className="flex justify-end gap-2 pt-2">
+          <Link href={`/admin/sessions/${params.id}`} className="btn btn-ghost">Cancel</Link>
+          <button type="submit" className="btn btn-primary">Save changes</button>
         </div>
       </form>
+
+      <div className="mt-6 max-w-3xl">
+        <ConfirmDeleteButton
+          action={deleteSession}
+          fields={[{ name: 'id', value: session.id }]}
+          itemName={session.title}
+          itemType="session"
+          warning="All attendance records and materials linked to this session will be permanently deleted."
+          buttonLabel=" Delete session"
+          buttonClass="btn btn-danger text-sm"
+        />
+      </div>
     </>
   );
 }

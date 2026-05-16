@@ -38,7 +38,7 @@ export default async function MentorSessionsPage() {
         title="Sessions"
         subtitle="Sessions across the internships you mentor."
         actions={
-          <Link href="/admin/sessions/new" className="btn btn-primary">
+          <Link href="/mentor/sessions/new" className="btn btn-primary">
             <Plus size={16} /> New session
           </Link>
         }
@@ -81,9 +81,8 @@ export default async function MentorSessionsPage() {
                     </td>
                     <td>
                       <Link
-                        href={`/admin/sessions/${s.id}`}
-                        className="text-sm"
-                        style={{ color: 'var(--accent)' }}
+                        href={`/mentor/sessions/${s.id}`}
+                        className="text-sm link"
                       >
                         Open →
                       </Link>

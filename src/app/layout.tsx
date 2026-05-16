@@ -2,9 +2,9 @@ import type { Metadata } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'ForgeML — Internship Platform',
+  title: 'RIT Internship Portal',
   description:
-    'Multi-level, milestone-gated internship platform for AI/ML training programs.',
+    'Internship management platform for the Rajiv Gandhi Institute of Technology — sessions, assignments, attendance, evaluation.',
 };
 
 export default function RootLayout({

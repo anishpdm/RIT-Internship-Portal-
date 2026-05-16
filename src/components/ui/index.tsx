@@ -41,7 +41,7 @@ export function Pill({
   tone,
 }: {
   children: React.ReactNode;
-  tone?: 'accent' | 'green' | 'red' | 'blue';
+  tone?: 'accent' | 'green' | 'red' | 'blue' | 'amber';
 }) {
   const cls = tone ? `pill pill-${tone}` : 'pill';
   return <span className={cls}>{children}</span>;

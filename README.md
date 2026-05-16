@@ -1,146 +1,70 @@
-# ForgeML — AI/ML Training Platform
+# RIT Internship Portal
 
-Complete internship management platform built for the **45-Day AI/ML Practical Training Program** described in the curriculum PDF. Supports any multi-level, milestone-gated cohort.
+Internship management platform for the Rajiv Gandhi Institute of Technology, Kottayam.
+Built for multi-level, cohort-based training programmes.
 
 **Stack:** Next.js 14 (App Router, TypeScript) · Supabase (Postgres + Auth + Storage + RLS) · Tailwind CSS
 
-**Three role-based portals:**
+## Three portals
 
-- **Admin** — internships, levels, students, mentors, sessions, assignments, submissions, audit logs
-- **Mentor** — assigned internships only: students, sessions, materials, evaluation
-- **Student** — own profile, attendance, materials, assignment submission, scores
-
----
+- **Admin** — full control: internships, levels, students, mentors, sessions, assignments, submissions, audit logs.
+- **Mentor** — assigned internships only: add students, create sessions, post assignments, evaluate submissions.
+- **Student** — own profile, attendance, materials, assignment submission, scores.
 
 ## What's inside
 
-| Feature | Where |
+| Capability | Where |
 |---|---|
-| Multi-level internships (Level 1 → 2 → 3 progression) | Admin → Internships → Levels |
-| Add / search / filter / delete students | Admin → Students |
-| Assign students to internships, promote / filter at level boundaries | Admin → Internship detail → Students tab |
-| Live, recorded, self-learning sessions (materials + file uploads) | Admin/Mentor → Sessions |
-| **Anti-bypass attendance** — rotating code for live, watched-time + active-tab heartbeats for recorded/self | Student → Session detail |
-| Daily / weekly / monthly / assessment assignments with GitHub link + file upload | Admin/Mentor → Assignments |
-| Submission review with score + feedback | Mentor/Admin → Submissions |
-| Full audit log of every admin / mentor action | Admin → Logs |
-| Per-level sorting & promotion (ranks students after each milestone) | Admin → Internship → Levels → Rank view |
-| Row-Level Security on every table | `supabase/policies.sql` |
+| Multi-level internships with promotion/filtering | Admin → Internships |
+| Add students (admin & mentor) | Admin/Mentor → Students |
+| Anti-bypass attendance — rotating code (live), heartbeat (recorded), dwell (self) | Student → Session detail |
+| GitHub or file submissions, weighted scoring | Student/Mentor → Assignments |
+| Full audit log of every privileged action | Admin → Logs |
+| Row-level security on every table | `supabase/policies.sql` |
 
----
+## Local setup (Mac / Linux / Windows)
 
-## Anti-bypass attendance (the hard part)
+1. **Install Node.js 20+** (`brew install node@20` on Mac).
+2. `npm install` in this folder.
+3. **Create a Supabase project** at supabase.com.
+4. In SQL Editor, run in order: `supabase/schema.sql` → `supabase/policies.sql` → optionally `supabase/seed.sql`.
+5. In Storage, create two public buckets: `materials` and `submissions`.
+6. `cp .env.local.example .env.local` and fill in:
+   - `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` from Supabase → Settings → API
+   - `SUPABASE_SERVICE_ROLE_KEY` from the same page (keep secret)
+   - `ATTENDANCE_SECRET` — generate with `openssl rand -hex 32`
+7. `npm run dev` and open http://localhost:3000
 
-Three session types, three different mechanisms:
+## First admin
 
-**1. Live sessions — rotating attendance code**
-- The mentor's session page generates a fresh 6-digit code every **90 seconds**, only visible to the mentor while the session is live.
-- Mentor speaks/shares the code during the call.
-- Students enter the code on their session page. Server accepts only if (a) session is within its scheduled window, and (b) code matches the current 90-second slot, derived server-side from `ATTENDANCE_SECRET + session_id + slot`.
-- Codes cannot be predicted client-side, and the slot rolls before a screenshot can spread.
+1. In Supabase → Authentication → Users → **Add user**, create yourself (tick auto-confirm).
+2. In SQL Editor: `update profiles set role='admin' where email='you@example.com';`
+3. Sign in at `/login`.
 
-**2. Recorded sessions — active-tab heartbeats**
-- The video page sends a heartbeat every 15s with `document.visibilityState === 'visible'` and the current video timestamp.
-- Server only counts a heartbeat when the tab is active AND the video timestamp has advanced since the last heartbeat (proves the user isn't muting and walking away).
-- Attendance is marked once accumulated active-watch time ≥ 80% of the video duration.
+## Deploying to Vercel (free)
 
-**3. Self-learning sessions — dwell + reflection**
-- Heartbeats every 15s while the tab is active. Requires ≥ a configurable minimum dwell time plus a short reflection note before attendance counts.
+1. `git init && git add . && git commit -m "Initial"`, push to GitHub.
+2. Import the repo at vercel.com → New Project.
+3. Add the four env vars (same as `.env.local`) under **Environment Variables**.
+4. Deploy.
+5. In Supabase → Authentication → URL Configuration, add the Vercel URL to **Site URL** and **Redirect URLs** (append `/auth/callback`).
 
-This isn't unbreakable (no browser-side check ever is), but it stops the three common bypasses: opening the tab and walking away, starting the video on mute, and sharing a friend's code.
+## Updating a deployed Vercel app
 
----
+Just push to the same branch. Vercel auto-deploys every commit to `main`:
 
-## Local setup (15 minutes)
-
-### 1. Prerequisites
-- Node.js 18+ and npm
-- A free Supabase account: https://supabase.com
-
-### 2. Create the Supabase project
-1. Go to https://supabase.com → New project. Pick the free tier, region near India (Mumbai or Singapore).
-2. Wait ~2 minutes for provisioning.
-3. SQL Editor → paste `supabase/schema.sql` → run.
-4. Then `supabase/policies.sql` → run.
-5. Optionally `supabase/seed.sql` for sample data.
-6. Authentication → Providers → ensure Email is enabled. For testing, Authentication → Settings → turn off "Confirm email". Re-enable for production.
-7. Storage → create two **public** buckets named `materials` and `submissions`.
-
-### 3. Environment variables
-Copy `.env.local.example` to `.env.local`:
-
-```env
-NEXT_PUBLIC_SUPABASE_URL=https://YOUR-PROJECT.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJ...
-SUPABASE_SERVICE_ROLE_KEY=eyJ...          # Settings → API → service_role
-ATTENDANCE_SECRET=any-long-random-string  # used to derive rotating codes
-```
-
-### 4. Install and run
 ```bash
-npm install
-npm run dev
-```
-Open http://localhost:3000.
-
-### 5. First admin user
-Supabase → Authentication → Users → Add user. Then in SQL Editor:
-```sql
-update public.profiles set role = 'admin' where id = (select id from auth.users where email = 'you@example.com');
+git add .
+git commit -m "Update UI and mentor capabilities"
+git push origin main
 ```
 
----
+The new deployment goes live in 2–3 minutes. The env vars persist.
 
-## Free hosting
+## Anti-bypass attendance (the interesting bit)
 
-This stack is genuinely free at the scale of one cohort (50–500 students):
+- **Live sessions** — A 6-digit code rotates on the mentor's screen every 90 seconds, derived from `HMAC(ATTENDANCE_SECRET, session_id || slot)`. Mentor announces it verbally; students enter it. One-slot grace window for lag.
+- **Recorded sessions** — Browser sends `{visibility, position, playing}` every 15s. Server credits the slot only if tab is visible, video is playing, position advanced by ≤20s (kills 2× speed and skip-ahead). Marked present at 80% active watch.
+- **Self-learning** — Dwell timer (pauses when tab is hidden) + reflection note ≥ 50 chars.
 
-| Component | Free tier | Notes |
-|---|---|---|
-| **Vercel** (Next.js frontend) | 100 GB bandwidth/mo, serverless included | Auto-deploys from GitHub |
-| **Supabase** (DB + Auth + Storage) | 500 MB DB, 1 GB storage, 50,000 MAU | Plenty for one cohort |
-| **GitHub** (source code) | Unlimited public + private repos | — |
-
-### Deploy to Vercel (5 minutes)
-1. Push this folder to a GitHub repo.
-2. https://vercel.com → New Project → Import the repo.
-3. Vercel auto-detects Next.js. Paste the same four env variables from `.env.local`.
-4. Click Deploy. You get a `your-app.vercel.app` URL.
-5. Optional: custom domain via Vercel → Domains.
-
----
-
-## Project layout
-
-```
-src/
-├── app/                      # Next.js App Router
-│   ├── login/                # Single sign-in (auto-routes by role)
-│   ├── admin/                # Admin portal
-│   ├── mentor/               # Mentor portal
-│   ├── student/              # Student portal
-│   └── api/                  # Attendance, heartbeat, session-code
-├── components/               # DashboardShell, DataTable, ui/*
-├── lib/
-│   ├── supabase/             # Client / server / middleware factories
-│   ├── audit.ts              # Audit-log helper
-│   ├── attendance.ts         # Code derivation + verification
-│   └── types.ts              # Shared types
-├── middleware.ts             # Role-gating
-supabase/
-├── schema.sql                # Tables, indexes, triggers
-├── policies.sql              # Row-Level Security
-└── seed.sql                  # Demo data
-```
-
----
-
-## Extending
-
-1. **Email notifications** — Supabase Auth has built-in email; hook a webhook to `session_reminder` and `submission_graded`.
-2. **Discord/Telegram webhook** — your training plan mentions cohort Discord; broadcast new assignments via env-configured URL.
-3. **Auto-grading** — for the Level 1 manual-computation tasks, a notebook diff / sklearn-equivalence checker fits as a Vercel serverless function.
-4. **Plagiarism** — submissions store GitHub URLs; a nightly job can pairwise-compare.
-5. **Leaderboard** — already computable from `submissions.score`; one view + one page.
-
-License: MIT.
+Every privileged action — including failed code attempts — lands in `audit_logs`.

@@ -118,7 +118,7 @@ export default async function MentorHomePage() {
               {upcoming.map((s) => (
                 <Link
                   key={s.id}
-                  href={`/admin/sessions/${s.id}`}
+                  href={`/mentor/sessions/${s.id}`}
                   className="card hover:border-amber-700/40 block"
                 >
                   <div className="flex items-center justify-between">

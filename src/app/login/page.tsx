@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
+import { AlertCircle, ArrowRight } from 'lucide-react';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -40,28 +41,25 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="min-h-screen paper flex items-center justify-center px-4">
+    <main className="min-h-screen surface-gradient flex items-center justify-center px-4 py-12">
       <div className="w-full max-w-md">
-        <Link
-          href="/"
-          className="font-display text-2xl font-semibold inline-flex items-center gap-2"
-        >
-          <span
-            className="w-7 h-7 inline-flex items-center justify-center text-white"
-            style={{ background: 'var(--ink-900)' }}
-          >
-            F
-          </span>
-          ForgeML
+        {/* Brand */}
+        <Link href="/" className="flex items-center gap-3 mb-10 justify-center">
+          <span className="brand-mark">RIT</span>
+          <div>
+            <p className="font-display text-lg font-semibold leading-tight">
+              Internship Portal
+            </p>
+            <p className="text-xs" style={{ color: 'var(--ink-500)' }}>
+              Rajiv Gandhi Institute of Technology
+            </p>
+          </div>
         </Link>
 
-        <div className="card mt-8">
-          <p className="eyebrow">Sign in</p>
-          <h1 className="font-display text-3xl font-semibold mt-2">
-            Welcome back.
-          </h1>
-          <p className="mt-2 text-sm" style={{ color: 'var(--ink-500)' }}>
-            One sign-in. Routed to your portal automatically.
+        <div className="card card-elevated p-8" style={{ boxShadow: 'var(--shadow-lg)' }}>
+          <h1 className="font-display text-2xl font-bold">Welcome back</h1>
+          <p className="mt-1.5 text-sm" style={{ color: 'var(--ink-500)' }}>
+            Sign in to continue to your portal.
           </p>
 
           <form onSubmit={onSubmit} className="mt-6 space-y-4">
@@ -73,7 +71,7 @@ export default function LoginPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 className="field"
-                placeholder="you@university.edu"
+                placeholder="you@rit.ac.in"
                 autoComplete="email"
               />
             </div>
@@ -91,31 +89,27 @@ export default function LoginPage() {
             </div>
 
             {error && (
-              <p
-                className="text-sm"
-                style={{ color: '#991b1b' }}
-              >
-                {error}
-              </p>
+              <div className="flex items-start gap-2 px-3 py-2 rounded-md text-sm"
+                style={{ background: 'var(--red-soft)', color: 'var(--red-700)' }}>
+                <AlertCircle size={14} className="mt-0.5 shrink-0" />
+                <span>{error}</span>
+              </div>
             )}
 
             <button
               type="submit"
               disabled={loading}
               className="btn btn-primary w-full"
+              style={{ padding: '0.7rem 1rem' }}
             >
-              {loading ? 'Signing in…' : 'Sign in'}
+              {loading ? 'Signing in…' : <>Sign in <ArrowRight size={14} /></>}
             </button>
           </form>
-
-          <p
-            className="mt-5 text-xs"
-            style={{ color: 'var(--ink-500)' }}
-          >
-            Accounts are created by the program administrator. Lost your password?
-            Ask your admin to reset it from Supabase Auth.
-          </p>
         </div>
+
+        <p className="text-center text-xs mt-6" style={{ color: 'var(--ink-500)' }}>
+          © Rajiv Gandhi Institute of Technology
+        </p>
       </div>
     </main>
   );

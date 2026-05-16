@@ -36,7 +36,7 @@ export default async function MentorAssignmentsPage() {
         title="Assignments"
         subtitle="Tasks across the internships you mentor."
         actions={
-          <Link href="/admin/assignments/new" className="btn btn-primary">
+          <Link href="/mentor/assignments/new" className="btn btn-primary">
             <Plus size={16} /> New assignment
           </Link>
         }
@@ -77,9 +77,8 @@ export default async function MentorAssignmentsPage() {
                   <td className="text-sm">{formatDateTime(a.due_at)}</td>
                   <td>
                     <Link
-                      href={`/admin/assignments/${a.id}`}
-                      className="text-sm"
-                      style={{ color: 'var(--accent)' }}
+                      href={`/mentor/assignments/${a.id}`}
+                      className="text-sm link"
                     >
                       Open →
                     </Link>

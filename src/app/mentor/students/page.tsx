@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
 import { requireRole } from '@/lib/auth';
 import { PageHeader, Pill, EmptyState } from '@/components/ui';
+import { UserPlus } from 'lucide-react';
 
 export const dynamic = 'force-dynamic';
 
@@ -55,6 +56,11 @@ export default async function MentorStudentsPage({
         eyebrow="Mentor"
         title="Students"
         subtitle="Only the students enrolled in internships you mentor."
+        actions={
+          <Link href="/mentor/students/add" className="btn btn-primary">
+            <UserPlus size={14} /> Add student
+          </Link>
+        }
       />
 
       <div className="flex gap-3 flex-wrap mb-6">

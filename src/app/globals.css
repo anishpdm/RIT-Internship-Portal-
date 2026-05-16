@@ -404,3 +404,174 @@ a.link:hover {
   background: var(--accent-soft);
   color: var(--accent);
 }
+
+/* ============================================
+   Mobile responsive adjustments
+   ============================================ */
+@media (max-width: 768px) {
+  .page-title {
+    font-size: 1.5rem;
+  }
+  .page-subtitle {
+    font-size: 0.9rem;
+  }
+  .stat-num {
+    font-size: 1.75rem;
+  }
+  .card {
+    padding: 1rem;
+  }
+  /* Tables scroll horizontally on small screens */
+  .table-wrap {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .table {
+    min-width: 600px;
+  }
+  .table th, .table td {
+    padding: 0.65rem 0.75rem;
+  }
+}
+
+/* ============================================
+   Print stylesheet — clean A4 report output
+   ============================================ */
+@media print {
+  /* Hide all interactive chrome */
+  .no-print,
+  aside,
+  nav,
+  button,
+  .btn,
+  form input[type="submit"] {
+    display: none !important;
+  }
+
+  /* Show items marked for print only */
+  .print-only {
+    display: block !important;
+  }
+
+  /* Reset layout so it fills the page */
+  body,
+  main,
+  .paper {
+    background: white !important;
+    color: black !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+  main {
+    margin-left: 0 !important;
+    padding: 0 !important;
+    max-width: 100% !important;
+  }
+  main > div {
+    padding: 0 !important;
+    max-width: 100% !important;
+  }
+
+  /* Remove card shadows / decorative borders */
+  .card {
+    background: white !important;
+    border: 1px solid #d1d5db !important;
+    box-shadow: none !important;
+    page-break-inside: avoid;
+    margin-bottom: 1rem;
+  }
+
+  /* Tables — make sure they print well */
+  .table {
+    border-collapse: collapse;
+    width: 100% !important;
+    font-size: 11pt !important;
+    min-width: 0 !important;
+  }
+  .table th,
+  .table td {
+    border: 1px solid #d1d5db !important;
+    padding: 0.4rem 0.55rem !important;
+    background: white !important;
+    color: black !important;
+  }
+  .table th {
+    background: #f3f4f6 !important;
+    font-weight: 600;
+    text-transform: none !important;
+    letter-spacing: 0 !important;
+    font-size: 10pt !important;
+  }
+
+  /* Pills become outlined for print */
+  .pill {
+    border: 1px solid #9ca3af !important;
+    background: white !important;
+    color: black !important;
+    padding: 0.05rem 0.4rem !important;
+    font-size: 9pt !important;
+  }
+
+  /* Page title */
+  .page-title {
+    font-size: 18pt !important;
+    color: black !important;
+  }
+  .page-subtitle {
+    color: #4b5563 !important;
+    font-size: 10pt !important;
+  }
+
+  /* Stat block */
+  .stat-num {
+    font-size: 16pt !important;
+    color: black !important;
+  }
+  .stat-label {
+    color: #4b5563 !important;
+  }
+
+  /* Eyebrow / accent text becomes neutral */
+  .eyebrow {
+    color: #6b7280 !important;
+    font-size: 9pt !important;
+  }
+
+  /* Brand mark for printed reports */
+  .brand-mark {
+    background: #4f46e5 !important;
+    color: white !important;
+    box-shadow: none !important;
+  }
+
+  /* Progress bars — keep visible in print */
+  .h-1\.5, .h-2 {
+    background: #e5e7eb !important;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+
+  /* Links stay visible but without colour-coding */
+  a {
+    color: black !important;
+    text-decoration: none !important;
+  }
+  a[href]::after {
+    content: '';
+  }
+
+  /* Force a small page margin */
+  @page {
+    margin: 1.4cm;
+  }
+
+  /* Each major section break */
+  h2.font-display {
+    page-break-after: avoid;
+    margin-top: 1rem !important;
+  }
+}
+
+.print-only {
+  display: none;
+}

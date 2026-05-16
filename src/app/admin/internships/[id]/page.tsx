@@ -316,7 +316,7 @@ export default async function InternshipDetailPage({
 
       {/* Students */}
       <section className="mt-10">
-        <div className="card p-0 overflow-hidden">
+        <div className="card p-0 overflow-hidden table-wrap">
           <div className="card-header px-6 pt-5">
             <h2 className="font-display text-xl font-semibold">
               Students &amp; level standings

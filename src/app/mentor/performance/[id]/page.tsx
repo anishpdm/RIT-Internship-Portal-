@@ -3,6 +3,8 @@ import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
 import { requireRole } from '@/lib/auth';
 import { PageHeader, Stat, Pill, EmptyState } from '@/components/ui';
+import PrintButton from '@/components/PrintButton';
+import PrintHeader from '@/components/PrintHeader';
 import { ArrowLeft, Trophy, Users, TrendingUp, Calendar } from 'lucide-react';
 
 export const dynamic = 'force-dynamic';
@@ -88,14 +90,22 @@ export default async function MentorInternshipPerformancePage({
 
   return (
     <>
+      <PrintHeader
+        title={`${internship.title} — Performance Report`}
+        subtitle={`Enrolled: ${rows?.length ?? 0} · Sessions: ${totalSessions ?? 0} · Assignments: ${totalAssignments ?? 0}`}
+      />
+
       <PageHeader
         eyebrow={`Performance · ${internship.title}`}
         title="Student performance"
         subtitle="Attendance, submissions and scores for every student in this internship."
         actions={
-          <Link href="/mentor/performance" className="btn btn-ghost">
-            <ArrowLeft size={16} /> All internships
-          </Link>
+          <>
+            <PrintButton label="Print report" />
+            <Link href="/mentor/performance" className="btn btn-ghost">
+              <ArrowLeft size={16} /> All
+            </Link>
+          </>
         }
       />
 
@@ -107,7 +117,7 @@ export default async function MentorInternshipPerformancePage({
       </div>
 
       {rows && rows.length > 0 ? (
-        <div className="card p-0 overflow-hidden">
+        <div className="card p-0 overflow-hidden table-wrap">
           <table className="table">
             <thead>
               <tr>

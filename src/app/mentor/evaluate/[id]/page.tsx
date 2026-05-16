@@ -103,6 +103,17 @@ export default async function EvaluatePage({
   const a: any = (sub as any).assignments;
   const student: any = (sub as any).profiles;
 
+  // Fetch evaluator name
+  let evaluatorName: string | null = null;
+  if (sub.evaluated_by) {
+    const { data: ev } = await supabase
+      .from('profiles')
+      .select('full_name, email')
+      .eq('id', sub.evaluated_by)
+      .single();
+    evaluatorName = ev?.full_name ?? ev?.email ?? null;
+  }
+
   return (
     <>
       <PageHeader
@@ -179,6 +190,12 @@ export default async function EvaluatePage({
               <p className="eyebrow">Existing feedback</p>
               <p className="mt-1 text-sm leading-relaxed whitespace-pre-wrap">{sub.feedback}</p>
             </div>
+          )}
+          {evaluatorName && (
+            <p className="mt-3 text-xs" style={{ color: 'var(--ink-500)' }}>
+              Evaluated by <strong style={{ color: 'var(--ink-900)' }}>{evaluatorName}</strong>
+              {sub.evaluated_at && <> · {formatDateTime(sub.evaluated_at)}</>}
+            </p>
           )}
           {a?.attachment_url && (
             <a

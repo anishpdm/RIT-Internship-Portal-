@@ -43,7 +43,7 @@ export default async function MentorAssignmentsPage() {
       />
 
       {rows.length > 0 ? (
-        <div className="card p-0 overflow-hidden">
+        <div className="card p-0 overflow-hidden table-wrap">
           <table className="table">
             <thead>
               <tr>

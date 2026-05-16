@@ -7,6 +7,8 @@ import { logAudit } from '@/lib/audit';
 import { PageHeader, Pill, EmptyState } from '@/components/ui';
 import { formatDateTime } from '@/lib/utils';
 import { ArrowLeft, Trash2, ExternalLink } from 'lucide-react';
+import PrintButton from '@/components/PrintButton';
+import PrintHeader from '@/components/PrintHeader';
 
 export const dynamic = 'force-dynamic';
 
@@ -61,13 +63,44 @@ export default async function MentorAssignmentDetailPage({ params }: { params: {
     .eq('assignment_id', params.id)
     .order('submitted_at', { ascending: false });
 
+  // Evaluator names
+  const evaluatorIds = Array.from(
+    new Set(
+      (submissions ?? [])
+        .map((s: any) => s.evaluated_by)
+        .filter(Boolean),
+    ),
+  );
+  let evaluatorMap = new Map<string, string>();
+  if (evaluatorIds.length > 0) {
+    const { data: evaluators } = await supabase
+      .from('profiles')
+      .select('id, full_name, email')
+      .in('id', evaluatorIds);
+    for (const e of evaluators ?? []) {
+      evaluatorMap.set(e.id, e.full_name ?? e.email ?? '—');
+    }
+  }
+
   return (
     <>
+      <PrintHeader
+        title={`${assignment.title} — Assignment Report`}
+        subtitle={`${(assignment as any).internships?.title ?? ''} · ${assignment.kind} · max ${assignment.max_score} · ${submissions?.length ?? 0} submissions`}
+      />
+
       <PageHeader
         eyebrow={`Mentor / ${(assignment as any).internships?.title ?? 'Assignment'}`}
         title={assignment.title}
         subtitle={`${assignment.kind} · max ${assignment.max_score} · weight ${assignment.weight}`}
-        actions={<Link href="/mentor/assignments" className="btn btn-ghost"><ArrowLeft size={16} /> Back</Link>}
+        actions={
+          <>
+            <PrintButton label="Print" />
+            <Link href="/mentor/assignments" className="btn btn-ghost">
+              <ArrowLeft size={16} /> Back
+            </Link>
+          </>
+        }
       />
 
       <div className="grid lg:grid-cols-3 gap-5 mb-8">
@@ -104,10 +137,13 @@ export default async function MentorAssignmentDetailPage({ params }: { params: {
       <h2 className="font-display text-xl font-semibold mb-4">Submissions</h2>
 
       {submissions && submissions.length > 0 ? (
-        <div className="card p-0 overflow-hidden">
+        <div className="card p-0 overflow-hidden table-wrap">
           <table className="table">
             <thead>
-              <tr><th>Student</th><th>Submitted</th><th>Status</th><th>Score</th><th>Link</th><th></th></tr>
+              <tr>
+                <th>Student</th><th>Submitted</th><th>Status</th><th>Score</th>
+                <th>Evaluated by</th><th>Link</th><th className="no-print"></th>
+              </tr>
             </thead>
             <tbody>
               {submissions.map((s: any) => (
@@ -119,11 +155,21 @@ export default async function MentorAssignmentDetailPage({ params }: { params: {
                   <td className="text-sm">{formatDateTime(s.submitted_at)}</td>
                   <td><Pill tone={s.status === 'graded' ? 'green' : s.status === 'returned' ? 'red' : 'blue'}>{s.status}</Pill></td>
                   <td className="font-mono text-sm">{s.score != null ? `${s.score} / ${assignment.max_score}` : '—'}</td>
+                  <td className="text-sm">
+                    {s.evaluated_by ? (
+                      <>
+                        <p>{evaluatorMap.get(s.evaluated_by) ?? '—'}</p>
+                        {s.evaluated_at && (
+                          <p className="text-xs" style={{ color: 'var(--ink-500)' }}>{formatDateTime(s.evaluated_at)}</p>
+                        )}
+                      </>
+                    ) : <span style={{ color: 'var(--ink-500)' }}>—</span>}
+                  </td>
                   <td className="text-xs">
                     {s.github_url && <a href={s.github_url} target="_blank" rel="noreferrer" className="link">GitHub ↗</a>}
                     {s.file_url && <a href={s.file_url} target="_blank" rel="noreferrer" className="link ml-2">File ↗</a>}
                   </td>
-                  <td><Link href={`/mentor/evaluate/${s.id}`} className="link text-sm">Evaluate →</Link></td>
+                  <td className="no-print"><Link href={`/mentor/evaluate/${s.id}`} className="link text-sm">Evaluate →</Link></td>
                 </tr>
               ))}
             </tbody>

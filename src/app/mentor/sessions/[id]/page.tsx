@@ -233,7 +233,7 @@ export default async function MentorSessionDetailPage({
         <div>
           <h2 className="font-display text-xl font-semibold mb-4">Attendance roster</h2>
           {attendance && attendance.length > 0 ? (
-            <div className="card p-0 overflow-hidden">
+            <div className="card p-0 overflow-hidden table-wrap">
               <table className="table">
                 <thead>
                   <tr><th>Student</th><th>Status</th><th>Marked</th></tr>

@@ -1,5 +1,6 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
@@ -11,12 +12,14 @@ import {
   Calendar,
   ClipboardCheck,
   ScrollText,
-  UserCircle2,
   BookOpen,
   LogOut,
   FileCheck,
   ShieldCheck,
   TrendingUp,
+  Settings,
+  Menu,
+  X,
   type LucideIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -37,22 +40,22 @@ const NAV: Record<UserRole, NavItem[]> = {
     { href: '/admin/assignments', label: 'Assignments', icon: ClipboardCheck },
     { href: '/admin/submissions', label: 'Submissions', icon: FileCheck },
     { href: '/admin/logs', label: 'Audit logs', icon: ScrollText },
-    { href: '/admin/profile', label: 'Account', icon: UserCircle2 },
+    { href: '/admin/settings', label: 'Settings', icon: Settings },
   ],
   mentor: [
     { href: '/mentor', label: 'Overview', icon: LayoutDashboard },
+    { href: '/mentor/performance', label: 'Internships', icon: GraduationCap },
     { href: '/mentor/students', label: 'Students', icon: Users },
     { href: '/mentor/sessions', label: 'Sessions', icon: Calendar },
     { href: '/mentor/assignments', label: 'Assignments', icon: ClipboardCheck },
     { href: '/mentor/evaluate', label: 'Evaluate', icon: FileCheck },
-    { href: '/mentor/performance', label: 'Performance', icon: TrendingUp },
-    { href: '/mentor/profile', label: 'Account', icon: UserCircle2 },
+    { href: '/mentor/settings', label: 'Settings', icon: Settings },
   ],
   student: [
     { href: '/student', label: 'Overview', icon: LayoutDashboard },
     { href: '/student/sessions', label: 'Sessions', icon: Calendar },
     { href: '/student/assignments', label: 'Assignments', icon: BookOpen },
-    { href: '/student/profile', label: 'Account', icon: UserCircle2 },
+    { href: '/student/profile', label: 'Account', icon: Settings },
   ],
 };
 
@@ -77,6 +80,24 @@ export function DashboardShell({
   const router = useRouter();
   const supabase = createClient();
   const items = NAV[role];
+  const [open, setOpen] = useState(false);
+
+  // Close drawer when route changes
+  useEffect(() => {
+    setOpen(false);
+  }, [pathname]);
+
+  // Prevent body scroll when drawer is open on mobile
+  useEffect(() => {
+    if (open) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [open]);
 
   async function signOut() {
     await supabase.auth.signOut();
@@ -94,24 +115,78 @@ export function DashboardShell({
 
   return (
     <div className="min-h-screen flex" style={{ background: 'var(--bg)' }}>
+      {/* Mobile top bar */}
+      <div
+        className="md:hidden fixed top-0 left-0 right-0 z-30 flex items-center justify-between px-4 py-3 no-print"
+        style={{
+          background: 'var(--paper)',
+          borderBottom: '1px solid var(--ink-200)',
+        }}
+      >
+        <Link href="/" className="flex items-center gap-2">
+          <span className="brand-mark" style={{ width: 28, height: 28, fontSize: '0.65rem' }}>
+            RIT
+          </span>
+          <span className="font-display text-sm font-semibold">
+            Internship Portal
+          </span>
+        </Link>
+        <button
+          onClick={() => setOpen(true)}
+          className="btn btn-ghost p-2"
+          aria-label="Open menu"
+        >
+          <Menu size={20} />
+        </button>
+      </div>
+
+      {/* Backdrop on mobile */}
+      {open && (
+        <div
+          className="md:hidden fixed inset-0 z-40 no-print"
+          style={{ background: 'rgba(15, 23, 42, 0.5)' }}
+          onClick={() => setOpen(false)}
+        />
+      )}
+
       {/* Sidebar */}
       <aside
-        className="w-64 shrink-0 flex flex-col fixed inset-y-0 left-0"
+        className={cn(
+          'w-64 shrink-0 flex flex-col fixed inset-y-0 left-0 z-50 transition-transform duration-200 ease-out no-print',
+          'md:translate-x-0',
+          open ? 'translate-x-0' : '-translate-x-full',
+        )}
         style={{ background: 'var(--sidebar-bg)' }}
       >
         {/* Brand */}
-        <div className="px-5 py-5" style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+        <div
+          className="px-5 py-5 flex items-center justify-between"
+          style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}
+        >
           <Link href="/" className="flex items-center gap-3">
             <span className="brand-mark">RIT</span>
             <div>
-              <p className="font-display text-sm font-semibold leading-tight" style={{ color: 'white' }}>
+              <p
+                className="font-display text-sm font-semibold leading-tight"
+                style={{ color: 'white' }}
+              >
                 Internship Portal
               </p>
-              <p className="text-[10px]" style={{ color: 'var(--sidebar-text-muted)' }}>
+              <p
+                className="text-[10px]"
+                style={{ color: 'var(--sidebar-text-muted)' }}
+              >
                 {ROLE_LABEL[role]} workspace
               </p>
             </div>
           </Link>
+          <button
+            onClick={() => setOpen(false)}
+            className="md:hidden text-white p-1 rounded hover:bg-white/10"
+            aria-label="Close menu"
+          >
+            <X size={18} />
+          </button>
         </div>
 
         {/* Nav */}
@@ -127,7 +202,7 @@ export function DashboardShell({
                 href={it.href}
                 className={cn(
                   'flex items-center gap-3 px-3 py-2.5 text-sm rounded-md transition-all',
-                  active ? 'nav-active' : ''
+                  active ? 'nav-active' : '',
                 )}
                 style={{
                   color: active ? 'white' : 'var(--sidebar-text)',
@@ -156,10 +231,16 @@ export function DashboardShell({
               {initials}
             </div>
             <div className="min-w-0 flex-1">
-              <p className="text-sm font-medium truncate" style={{ color: 'white' }}>
+              <p
+                className="text-sm font-medium truncate"
+                style={{ color: 'white' }}
+              >
                 {name}
               </p>
-              <p className="text-[11px] truncate" style={{ color: 'var(--sidebar-text-muted)' }}>
+              <p
+                className="text-[11px] truncate"
+                style={{ color: 'var(--sidebar-text-muted)' }}
+              >
                 {email}
               </p>
             </div>
@@ -169,10 +250,12 @@ export function DashboardShell({
             className="flex items-center gap-2 w-full text-xs px-2 py-1.5 rounded transition-colors"
             style={{ color: 'var(--sidebar-text)' }}
             onMouseEnter={(e) =>
-              ((e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.05)')
+              ((e.currentTarget as HTMLButtonElement).style.background =
+                'rgba(255,255,255,0.05)')
             }
             onMouseLeave={(e) =>
-              ((e.currentTarget as HTMLButtonElement).style.background = 'transparent')
+              ((e.currentTarget as HTMLButtonElement).style.background =
+                'transparent')
             }
           >
             <LogOut size={12} /> Sign out
@@ -181,8 +264,10 @@ export function DashboardShell({
       </aside>
 
       {/* Main content */}
-      <main className="flex-1 ml-64 min-w-0">
-        <div className="px-8 md:px-12 py-10 max-w-[1400px]">{children}</div>
+      <main className="flex-1 md:ml-64 min-w-0 w-full">
+        <div className="px-4 sm:px-6 md:px-10 lg:px-12 pt-16 md:pt-10 pb-10 max-w-[1400px]">
+          {children}
+        </div>
       </main>
     </div>
   );

@@ -22,6 +22,25 @@ export default async function AdminSubmissionsPage({
   if (searchParams.status) query = query.eq('status', searchParams.status);
   const { data: subs } = await query;
 
+  // Fetch evaluator names separately
+  const evaluatorIds = Array.from(
+    new Set(
+      (subs ?? [])
+        .map((s: any) => s.evaluated_by)
+        .filter(Boolean),
+    ),
+  );
+  let evaluatorMap = new Map<string, string>();
+  if (evaluatorIds.length > 0) {
+    const { data: evaluators } = await supabase
+      .from('profiles')
+      .select('id, full_name, email')
+      .in('id', evaluatorIds);
+    for (const e of evaluators ?? []) {
+      evaluatorMap.set(e.id, e.full_name ?? e.email ?? '—');
+    }
+  }
+
   const tabs = ['submitted', 'under_review', 'graded', 'returned'];
 
   return (
@@ -51,7 +70,7 @@ export default async function AdminSubmissionsPage({
       </div>
 
       {subs && subs.length > 0 ? (
-        <div className="card p-0 overflow-hidden">
+        <div className="card p-0 overflow-hidden table-wrap">
           <table className="table">
             <thead>
               <tr>
@@ -61,6 +80,7 @@ export default async function AdminSubmissionsPage({
                 <th>Submitted</th>
                 <th>Status</th>
                 <th>Score</th>
+                <th>Evaluated by</th>
                 <th></th>
               </tr>
             </thead>
@@ -96,11 +116,24 @@ export default async function AdminSubmissionsPage({
                       ? `${s.score} / ${s.assignments?.max_score ?? '—'}`
                       : '—'}
                   </td>
+                  <td className="text-sm">
+                    {s.evaluated_by ? (
+                      <>
+                        <p>{evaluatorMap.get(s.evaluated_by) ?? '—'}</p>
+                        {s.evaluated_at && (
+                          <p className="text-xs" style={{ color: 'var(--ink-500)' }}>
+                            {formatDateTime(s.evaluated_at)}
+                          </p>
+                        )}
+                      </>
+                    ) : (
+                      <span style={{ color: 'var(--ink-500)' }}>—</span>
+                    )}
+                  </td>
                   <td>
                     <Link
                       href={`/admin/submissions/${s.id}`}
-                      className="text-sm"
-                      style={{ color: 'var(--accent)' }}
+                      className="text-sm link"
                     >
                       Open →
                     </Link>

@@ -7,6 +7,8 @@ import { logAudit } from '@/lib/audit';
 import { PageHeader, Pill, EmptyState } from '@/components/ui';
 import { formatDateTime } from '@/lib/utils';
 import { ArrowLeft, Trash2, ExternalLink } from 'lucide-react';
+import PrintButton from '@/components/PrintButton';
+import PrintHeader from '@/components/PrintHeader';
 
 export const dynamic = 'force-dynamic';
 
@@ -53,16 +55,43 @@ export default async function AssignmentDetailPage({
     .eq('assignment_id', params.id)
     .order('submitted_at', { ascending: false });
 
+  // Fetch evaluator names separately (to avoid FK ambiguity in joins)
+  const evaluatorIds = Array.from(
+    new Set(
+      (submissions ?? [])
+        .map((s: any) => s.evaluated_by)
+        .filter(Boolean),
+    ),
+  );
+  let evaluatorMap = new Map<string, string>();
+  if (evaluatorIds.length > 0) {
+    const { data: evaluators } = await supabase
+      .from('profiles')
+      .select('id, full_name, email')
+      .in('id', evaluatorIds);
+    for (const e of evaluators ?? []) {
+      evaluatorMap.set(e.id, e.full_name ?? e.email ?? '—');
+    }
+  }
+
   return (
     <>
+      <PrintHeader
+        title={`${assignment.title} — Assignment Report`}
+        subtitle={`${(assignment as any).internships?.title ?? ''} · ${assignment.kind} · max ${assignment.max_score} · ${submissions?.length ?? 0} submissions`}
+      />
+
       <PageHeader
         eyebrow={`Admin / ${(assignment as any).internships?.title ?? 'Assignment'}`}
         title={assignment.title}
         subtitle={`${assignment.kind} · max ${assignment.max_score} · weight ${assignment.weight}`}
         actions={
-          <Link href="/admin/assignments" className="btn btn-ghost">
-            <ArrowLeft size={16} /> Back
-          </Link>
+          <>
+            <PrintButton label="Print" />
+            <Link href="/admin/assignments" className="btn btn-ghost">
+              <ArrowLeft size={16} /> Back
+            </Link>
+          </>
         }
       />
 
@@ -109,7 +138,7 @@ export default async function AssignmentDetailPage({
       <h2 className="font-display text-2xl mb-4">Submissions</h2>
 
       {submissions && submissions.length > 0 ? (
-        <div className="card p-0 overflow-hidden">
+        <div className="card p-0 overflow-hidden table-wrap">
           <table className="table">
             <thead>
               <tr>
@@ -117,8 +146,9 @@ export default async function AssignmentDetailPage({
                 <th>Submitted</th>
                 <th>Status</th>
                 <th>Score</th>
+                <th>Evaluated by</th>
                 <th>Link</th>
-                <th></th>
+                <th className="no-print"></th>
               </tr>
             </thead>
             <tbody>
@@ -147,13 +177,27 @@ export default async function AssignmentDetailPage({
                   <td className="font-mono text-sm">
                     {s.score != null ? `${s.score} / ${assignment.max_score}` : '—'}
                   </td>
+                  <td className="text-sm">
+                    {s.evaluated_by ? (
+                      <>
+                        <p>{evaluatorMap.get(s.evaluated_by) ?? '—'}</p>
+                        {s.evaluated_at && (
+                          <p className="text-xs" style={{ color: 'var(--ink-500)' }}>
+                            {formatDateTime(s.evaluated_at)}
+                          </p>
+                        )}
+                      </>
+                    ) : (
+                      <span style={{ color: 'var(--ink-500)' }}>—</span>
+                    )}
+                  </td>
                   <td className="text-xs">
                     {s.github_url && (
                       <a
                         href={s.github_url}
                         target="_blank"
                         rel="noreferrer"
-                        style={{ color: 'var(--accent)' }}
+                        className="link"
                       >
                         GitHub ↗
                       </a>
@@ -163,18 +207,16 @@ export default async function AssignmentDetailPage({
                         href={s.file_url}
                         target="_blank"
                         rel="noreferrer"
-                        className="ml-2"
-                        style={{ color: 'var(--accent)' }}
+                        className="ml-2 link"
                       >
                         File ↗
                       </a>
                     )}
                   </td>
-                  <td>
+                  <td className="no-print">
                     <Link
                       href={`/admin/submissions/${s.id}`}
-                      className="text-sm"
-                      style={{ color: 'var(--accent)' }}
+                      className="text-sm link"
                     >
                       Evaluate →
                     </Link>

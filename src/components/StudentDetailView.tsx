@@ -1,6 +1,8 @@
 import Link from 'next/link';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { PageHeader, Stat, Pill, EmptyState } from '@/components/ui';
+import PrintButton from '@/components/PrintButton';
+import PrintHeader from '@/components/PrintHeader';
 import { formatDateTime, formatDate, relativeTime } from '@/lib/utils';
 import {
   ArrowLeft,
@@ -115,14 +117,22 @@ export async function StudentDetailView({
 
   return (
     <>
+      <PrintHeader
+        title={`${profile.full_name ?? profile.email} — Progress Report`}
+        subtitle={`${profile.email} · ${enrollments?.length ?? 0} enrolment(s) · Avg score ${avgScore}%`}
+      />
+
       <PageHeader
         eyebrow="Student progress"
         title={profile.full_name ?? profile.email}
         subtitle={profile.bio || 'Complete academic record for this student.'}
         actions={
-          <Link href={backHref} className="btn btn-ghost">
-            <ArrowLeft size={16} /> {backLabel}
-          </Link>
+          <>
+            <PrintButton label="Print" />
+            <Link href={backHref} className="btn btn-ghost">
+              <ArrowLeft size={16} /> {backLabel}
+            </Link>
+          </>
         }
       />
 
@@ -248,7 +258,7 @@ export async function StudentDetailView({
         Submissions ({submissions.length})
       </h2>
       {submissions.length > 0 ? (
-        <div className="card p-0 overflow-hidden mb-10">
+        <div className="card p-0 overflow-hidden mb-10 table-wrap">
           <table className="table">
             <thead>
               <tr>
@@ -332,7 +342,7 @@ export async function StudentDetailView({
         Attendance ({attendance.length})
       </h2>
       {attendance.length > 0 ? (
-        <div className="card p-0 overflow-hidden">
+        <div className="card p-0 overflow-hidden table-wrap">
           <table className="table">
             <thead>
               <tr>

@@ -63,6 +63,9 @@ export default function ChangePasswordForm() {
       return;
     }
 
+    // Clear must_change_password flag (no-op if already cleared)
+    await supabase.rpc('clear_must_change_password');
+
     setSuccess(true);
     setCurrent('');
     setNext('');

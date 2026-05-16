@@ -6,7 +6,7 @@ import { requireRole } from '@/lib/auth';
 import { logAudit } from '@/lib/audit';
 import { PageHeader, Pill, EmptyState } from '@/components/ui';
 import { formatDateTime } from '@/lib/utils';
-import { ArrowLeft, Trash2, FileText, Link as LinkIcon } from 'lucide-react';
+import { ArrowLeft, Trash2, FileText, Link as LinkIcon, Pencil } from 'lucide-react';
 import LiveCodePanel from './LiveCodePanel';
 
 export const dynamic = 'force-dynamic';
@@ -123,9 +123,14 @@ export default async function SessionDetailPage({
         title={session.title}
         subtitle={`${session.session_type.replace('_', ' ')} · ${formatDateTime(session.scheduled_at)}`}
         actions={
-          <Link href="/admin/sessions" className="btn btn-ghost">
-            <ArrowLeft size={16} /> Back
-          </Link>
+          <>
+            <Link href={`/admin/sessions/${session.id}/edit`} className="btn btn-secondary">
+              <Pencil size={14} /> Edit
+            </Link>
+            <Link href="/admin/sessions" className="btn btn-ghost">
+              <ArrowLeft size={16} /> Back
+            </Link>
+          </>
         }
       />
 

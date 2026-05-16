@@ -18,9 +18,10 @@ async function addStudent(formData: FormData) {
   const email = String(formData.get('email') ?? '').trim().toLowerCase();
   const full_name = String(formData.get('full_name') ?? '').trim();
   const internship_id = String(formData.get('internship_id') ?? '');
-  const password = String(formData.get('password') ?? '').trim();
+  const passwordInput = String(formData.get('password') ?? '').trim();
+  const password = passwordInput || 'rit12345';
 
-  if (!email || !internship_id || !password) {
+  if (!email || !internship_id) {
     redirect('/mentor/students/add?error=missing');
   }
 
@@ -46,7 +47,6 @@ async function addStudent(formData: FormData) {
 
   if (existing) {
     userId = existing.id;
-    // If they're already a mentor/admin, don't downgrade — just skip user creation
   } else {
     // Create new auth user
     const { data: created, error: createErr } = await admin.auth.admin.createUser({
@@ -60,11 +60,11 @@ async function addStudent(formData: FormData) {
     }
     userId = created.user.id;
 
-    // The handle_new_user trigger will have created the profile row
-    // Update with name (role defaults to 'student' already)
-    if (full_name) {
-      await admin.from('profiles').update({ full_name }).eq('id', userId);
-    }
+    // Force password change on first login
+    await admin
+      .from('profiles')
+      .update({ full_name: full_name || null, must_change_password: true })
+      .eq('id', userId);
   }
 
   // Enrol in internship (idempotent)
@@ -146,10 +146,10 @@ export default async function MentorAddStudentPage() {
           <input name="full_name" className="field" placeholder="Arjun Krishnan" />
         </div>
         <div>
-          <label className="field-label">Initial password</label>
-          <input type="text" name="password" required minLength={6} className="field font-mono" placeholder="They can change this later" />
+          <label className="field-label">Initial password (optional)</label>
+          <input type="text" name="password" minLength={6} className="field font-mono" placeholder="rit12345 (default)" />
           <p className="text-xs mt-1" style={{ color: 'var(--ink-500)' }}>
-            Share this with the student over a secure channel. They&apos;ll be able to change it after their first sign-in.
+            Leave blank to use <code>rit12345</code>. Student must change it on first login.
           </p>
         </div>
         <div>

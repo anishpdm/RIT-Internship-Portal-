@@ -5,7 +5,7 @@ import { requireRole } from '@/lib/auth';
 import { PageHeader, Pill, Stat } from '@/components/ui';
 import { logAudit } from '@/lib/audit';
 import { formatDate } from '@/lib/utils';
-import { TrendingUp } from 'lucide-react';
+import { TrendingUp, Pencil, Upload, Trash2 } from 'lucide-react';
 
 async function updateInternshipStatus(formData: FormData) {
   'use server';
@@ -193,23 +193,18 @@ export default async function InternshipDetailPage({
             >
               <TrendingUp size={14} /> Performance
             </Link>
-            <form action={updateInternshipStatus}>
-              <input type="hidden" name="id" value={internship.id} />
-              <select
-                name="status"
-                defaultValue={internship.status}
-                className="field"
-                style={{ paddingRight: '2rem' }}
-              >
-                <option value="draft">draft</option>
-                <option value="active">active</option>
-                <option value="completed">completed</option>
-                <option value="archived">archived</option>
-              </select>
-              <button type="submit" className="btn btn-secondary ml-2">
-                Update
-              </button>
-            </form>
+            <Link
+              href={`/admin/internships/${internship.id}/edit`}
+              className="btn btn-secondary"
+            >
+              <Pencil size={14} /> Edit
+            </Link>
+            <Link
+              href={`/admin/internships/${internship.id}/import`}
+              className="btn btn-secondary"
+            >
+              <Upload size={14} /> Import CSV
+            </Link>
             <form action={deleteInternship}>
               <input type="hidden" name="id" value={internship.id} />
               <button
@@ -217,7 +212,7 @@ export default async function InternshipDetailPage({
                 className="btn btn-danger"
                 title="Delete this internship"
               >
-                Delete
+                <Trash2 size={14} /> Delete
               </button>
             </form>
           </>

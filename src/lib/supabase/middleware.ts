@@ -27,13 +27,15 @@ export async function updateSession(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   let role: string | null = null;
+  let mustChange = false;
   if (user) {
     const { data: profile } = await supabase
       .from('profiles')
-      .select('role')
+      .select('role, must_change_password')
       .eq('id', user.id)
       .maybeSingle();
     role = profile?.role ?? null;
+    mustChange = !!profile?.must_change_password;
   }
 
   const url = request.nextUrl;
@@ -53,26 +55,33 @@ export async function updateSession(request: NextRequest) {
 
   // Logged in but profile not yet created (rare race condition)
   if (isProtected && user && !role) {
-    // Let through; the layout's requireRole will handle gracefully
     return response;
   }
 
+  // Forced password change: block all protected routes until the flag clears
+  if (
+    user &&
+    mustChange &&
+    path !== '/change-password' &&
+    path !== '/login' &&
+    !path.startsWith('/auth/')
+  ) {
+    return NextResponse.redirect(new URL('/change-password', request.url));
+  }
+
   if (user && role) {
-    // Role-based gating
+    // Role-based gating (only after flag check above)
     if (path.startsWith('/admin') && role !== 'admin') {
       return NextResponse.redirect(new URL(`/${role}`, request.url));
     }
-    // Mentor routes: only mentor OR admin allowed
     if (path.startsWith('/mentor') && role !== 'mentor' && role !== 'admin') {
       return NextResponse.redirect(new URL(`/${role}`, request.url));
     }
-    // Student routes: only student OR admin allowed
     if (path.startsWith('/student') && role !== 'student' && role !== 'admin') {
       return NextResponse.redirect(new URL(`/${role}`, request.url));
     }
 
-    // If already signed in and visiting /login or /, send to your home portal
-    if (path === '/login' || path === '/') {
+    if ((path === '/login' || path === '/') && !mustChange) {
       return NextResponse.redirect(new URL(`/${role}`, request.url));
     }
   }

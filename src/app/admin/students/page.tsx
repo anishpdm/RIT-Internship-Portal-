@@ -16,14 +16,14 @@ async function addStudent(formData: FormData) {
 
   const email = String(formData.get('email') ?? '').trim().toLowerCase();
   const full_name = String(formData.get('full_name') ?? '').trim();
-  const password = String(formData.get('password') ?? '').trim();
+  const passwordInput = String(formData.get('password') ?? '').trim();
+  const password = passwordInput || 'rit12345';
   const role = 'student';
 
-  if (!email || !password || !full_name) {
-    throw new Error('Missing fields');
+  if (!email || !full_name) {
+    throw new Error('Email and name are required');
   }
 
-  // Create the auth user with admin client. handle_new_user trigger creates profile.
   const { data: user, error: userErr } = await admin.auth.admin.createUser({
     email,
     password,
@@ -34,10 +34,10 @@ async function addStudent(formData: FormData) {
     throw new Error(userErr?.message ?? 'Failed to create user');
   }
 
-  // Trigger sets role from raw_user_meta_data; force-confirm here too:
+  // Force password change on first login
   await admin
     .from('profiles')
-    .update({ role, full_name, email })
+    .update({ role, full_name, email, must_change_password: true })
     .eq('id', user.user.id);
 
   await logAudit({
@@ -46,7 +46,7 @@ async function addStudent(formData: FormData) {
     action: 'create_student',
     entity_type: 'profile',
     entity_id: user.user.id,
-    details: { email, full_name },
+    details: { email, full_name, default_password: password === 'rit12345' },
   });
 
   redirect('/admin/students');
@@ -170,17 +170,16 @@ export default async function StudentsPage({
               <input name="email" type="email" required className="field" />
             </div>
             <div>
-              <label className="label">Initial password</label>
+              <label className="label">Initial password (optional)</label>
               <input
                 name="password"
                 type="text"
-                required
-                minLength={8}
+                minLength={6}
                 className="field font-mono"
-                placeholder="≥ 8 characters"
+                placeholder="rit12345 (default)"
               />
               <p className="mt-1 text-xs" style={{ color: 'var(--ink-500)' }}>
-                Share with the student. They can change it after first login.
+                Leave blank to use <code>rit12345</code>. Student will be forced to change on first login.
               </p>
             </div>
             <button type="submit" className="btn btn-primary w-full">

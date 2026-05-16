@@ -56,6 +56,7 @@ create table if not exists public.profiles (
   avatar_url    text,
   bio           text,
   metadata      jsonb default '{}'::jsonb,
+  must_change_password boolean default false,
   created_at    timestamptz not null default now(),
   updated_at    timestamptz not null default now()
 );
@@ -87,6 +88,20 @@ drop trigger if exists on_auth_user_created on auth.users;
 create trigger on_auth_user_created
   after insert on auth.users
   for each row execute function public.handle_new_user();
+
+-- Helper RPC: lets the authenticated user clear their own must_change_password flag
+create or replace function public.clear_must_change_password()
+returns void
+language sql
+security definer
+set search_path = public
+as $$
+  update public.profiles
+  set must_change_password = false
+  where id = auth.uid();
+$$;
+
+grant execute on function public.clear_must_change_password() to authenticated;
 
 -- =====================================================================
 -- internships

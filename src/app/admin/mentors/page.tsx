@@ -15,8 +15,9 @@ async function addMentor(formData: FormData) {
   const admin = createAdminClient();
   const email = String(formData.get('email') ?? '').trim().toLowerCase();
   const full_name = String(formData.get('full_name') ?? '').trim();
-  const password = String(formData.get('password') ?? '').trim();
-  if (!email || !password || !full_name) throw new Error('Missing fields');
+  const passwordInput = String(formData.get('password') ?? '').trim();
+  const password = passwordInput || 'rit12345';
+  if (!email || !full_name) throw new Error('Email and name are required');
 
   const { data: user, error } = await admin.auth.admin.createUser({
     email,
@@ -28,7 +29,7 @@ async function addMentor(formData: FormData) {
 
   await admin
     .from('profiles')
-    .update({ role: 'mentor', full_name, email })
+    .update({ role: 'mentor', full_name, email, must_change_password: true })
     .eq('id', user.user.id);
 
   await logAudit({
@@ -37,7 +38,7 @@ async function addMentor(formData: FormData) {
     action: 'create_mentor',
     entity_type: 'profile',
     entity_id: user.user.id,
-    details: { email, full_name },
+    details: { email, full_name, default_password: password === 'rit12345' },
   });
 
   redirect('/admin/mentors');
@@ -136,14 +137,17 @@ export default async function MentorsPage() {
                 <input name="email" type="email" required className="field" />
               </div>
               <div>
-                <label className="label">Initial password</label>
+                <label className="label">Initial password (optional)</label>
                 <input
                   name="password"
                   type="text"
-                  minLength={8}
-                  required
+                  minLength={6}
                   className="field font-mono"
+                  placeholder="rit12345 (default)"
                 />
+                <p className="mt-1 text-xs" style={{ color: 'var(--ink-500)' }}>
+                  Leave blank for <code>rit12345</code>. Must change on first login.
+                </p>
               </div>
               <button type="submit" className="btn btn-primary w-full">
                 Create mentor

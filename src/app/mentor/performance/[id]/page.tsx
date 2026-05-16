@@ -5,7 +5,8 @@ import { requireRole } from '@/lib/auth';
 import { PageHeader, Stat, Pill, EmptyState } from '@/components/ui';
 import PrintButton from '@/components/PrintButton';
 import PrintHeader from '@/components/PrintHeader';
-import { ArrowLeft, Trophy, Users, TrendingUp, Calendar } from 'lucide-react';
+import { HorizontalBarChart, DonutChart } from '@/components/Charts';
+import { ArrowLeft, Trophy, Users, TrendingUp, Calendar, Upload } from 'lucide-react';
 
 export const dynamic = 'force-dynamic';
 
@@ -101,6 +102,9 @@ export default async function MentorInternshipPerformancePage({
         subtitle="Attendance, submissions and scores for every student in this internship."
         actions={
           <>
+            <Link href={`/mentor/internships/${params.id}/import`} className="btn btn-secondary">
+              <Upload size={14} /> Import CSV
+            </Link>
             <PrintButton label="Print report" />
             <Link href="/mentor/performance" className="btn btn-ghost">
               <ArrowLeft size={16} /> All
@@ -115,6 +119,44 @@ export default async function MentorInternshipPerformancePage({
         <Stat label="Cohort attendance" value={`${cohortAttendanceAvg}%`} />
         <Stat label="Sessions / Assignments" value={`${totalSessions ?? 0} / ${totalAssignments ?? 0}`} />
       </div>
+
+      {rows && rows.length > 0 && (
+        <div className="grid lg:grid-cols-2 gap-5 mb-8">
+          <div className="card">
+            <p className="eyebrow mb-3">Score distribution</p>
+            <HorizontalBarChart
+              data={rows.slice(0, 10).map((r: any) => ({
+                label: r.full_name ?? r.email ?? '—',
+                value: Number(r.total_score ?? 0),
+                meta: `L${r.current_level} · ${r.status}`,
+              }))}
+              max={100}
+              unit="%"
+            />
+            {rows.length > 10 && (
+              <p
+                className="text-xs mt-3 text-center"
+                style={{ color: 'var(--ink-500)' }}
+              >
+                Top 10 of {rows.length} shown.
+              </p>
+            )}
+          </div>
+
+          <div className="card">
+            <p className="eyebrow mb-3">Status breakdown</p>
+            <DonutChart
+              data={[
+                { label: 'Active', value: rows.filter((r: any) => r.status === 'active').length, color: '#3b82f6' },
+                { label: 'Promoted', value: rows.filter((r: any) => r.status === 'promoted').length, color: '#10b981' },
+                { label: 'Filtered', value: rows.filter((r: any) => r.status === 'filtered').length, color: '#ef4444' },
+                { label: 'Completed', value: rows.filter((r: any) => r.status === 'completed').length, color: '#4f46e5' },
+                { label: 'Dropped', value: rows.filter((r: any) => r.status === 'dropped').length, color: '#64748b' },
+              ].filter((d) => d.value > 0)}
+            />
+          </div>
+        </div>
+      )}
 
       {rows && rows.length > 0 ? (
         <div className="card p-0 overflow-hidden table-wrap">

@@ -172,7 +172,7 @@ export default async function AssignmentDetailPage({
                   </td>
                   <td>
                     <Link
-                      href={`/mentor/evaluate/${s.id}`}
+                      href={`/admin/submissions/${s.id}`}
                       className="text-sm"
                       style={{ color: 'var(--accent)' }}
                     >

@@ -29,15 +29,20 @@ export default function LoginPage() {
       return;
     }
 
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('id', data.user.id)
-      .single();
+    // Fetch profile to determine target portal
+    let targetRole = 'student';
+    if (data?.user) {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', data.user.id)
+        .maybeSingle();
+      if (profile?.role) targetRole = profile.role;
+    }
 
     setLoading(false);
-    router.push(`/${profile?.role ?? 'student'}`);
-    router.refresh();
+    // Hard reload so the server-side middleware reads the new cookie reliably
+    window.location.href = `/${targetRole}`;
   }
 
   return (

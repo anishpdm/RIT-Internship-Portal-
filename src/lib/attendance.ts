@@ -11,7 +11,6 @@ export function codeForSlot(sessionId: string, slot: number): string {
   const h = createHmac('sha256', secret)
     .update(`${sessionId}:${slot}`)
     .digest('hex');
-  // Take 6 hex chars, convert to integer, mod 1_000_000, zero-pad
   const n = parseInt(h.slice(0, 8), 16) % 1_000_000;
   return n.toString().padStart(6, '0');
 }
@@ -37,7 +36,7 @@ export function currentCode(sessionId: string): {
  */
 export function verifyCode(
   sessionId: string,
-  submittedCode: string
+  submittedCode: string,
 ): { ok: boolean; slot?: number } {
   const slot = currentSlot();
   if (submittedCode === codeForSlot(sessionId, slot)) return { ok: true, slot };
@@ -47,16 +46,30 @@ export function verifyCode(
 }
 
 /**
- * Live-window check: is "now" within scheduled_at .. scheduled_at + duration + grace?
+ * A session is "live for attendance" if either:
+ *   - the mentor has explicitly set status = 'live', OR
+ *   - the session is in scheduled state and we're within its time window
+ *     (with a generous 30-minute grace before and 60-minute grace after).
+ *
+ * This avoids the timezone trap: even if scheduled_at is off by a few hours
+ * because of TZ issues, the mentor's manual "Start session" still works.
  */
 export function isSessionLive(
+  status: string,
   scheduledAt: string | null,
   durationMinutes: number,
-  graceMinutes: number = 15
+  graceBeforeMinutes: number = 30,
+  graceAfterMinutes: number = 60,
 ): boolean {
+  // Primary signal: explicit status
+  if (status === 'live') return true;
+  if (status === 'cancelled' || status === 'ended') return false;
+
+  // Fallback: time-window check for sessions still in 'scheduled' status
   if (!scheduledAt) return false;
   const start = new Date(scheduledAt).getTime();
-  const end = start + (durationMinutes + graceMinutes) * 60 * 1000;
+  const end = start + (durationMinutes + graceAfterMinutes) * 60 * 1000;
+  const earliestEntry = start - graceBeforeMinutes * 60 * 1000;
   const now = Date.now();
-  return now >= start - 5 * 60 * 1000 && now <= end;
+  return now >= earliestEntry && now <= end;
 }

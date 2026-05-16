@@ -43,9 +43,9 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  if (!isSessionLive(session.scheduled_at, session.duration_minutes)) {
+  if (!isSessionLive(session.status, session.scheduled_at, session.duration_minutes)) {
     return NextResponse.json(
-      { error: 'session not currently live' },
+      { error: 'Session is not live. Ask your mentor to start it.' },
       { status: 403 },
     );
   }

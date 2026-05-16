@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
+import DateTimeField from '@/components/DateTimeField';
 import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
 import { requireRole } from '@/lib/auth';
@@ -193,7 +194,7 @@ export default async function MentorNewSessionPage() {
         <div className="grid sm:grid-cols-2 gap-4">
           <div>
             <label className="field-label">Scheduled at</label>
-            <input type="datetime-local" name="scheduled_at" className="field" />
+            <DateTimeField name="scheduled_at" />
           </div>
           <div>
             <label className="field-label">Duration (minutes)</label>

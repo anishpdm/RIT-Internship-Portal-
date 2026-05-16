@@ -12,7 +12,7 @@ export const dynamic = 'force-dynamic';
 
 async function gradeSubmission(formData: FormData) {
   'use server';
-  const me = await requireRole(['mentor', 'admin']);
+  const me = await requireRole(['admin', 'mentor']);
   const supabase = createClient();
 
   const id = String(formData.get('id') ?? '');
@@ -37,9 +37,9 @@ async function gradeSubmission(formData: FormData) {
     .select('*, assignments:assignment_id (internship_id, weight, max_score)')
     .single();
 
-  if (error || !updated) redirect(`/mentor/evaluate/${id}?error=db`);
+  if (error || !updated) redirect(`/admin/submissions/${id}?error=db`);
 
-  // Recompute total_score for that enrollment (weighted average of graded subs)
+  // Recompute weighted score for the enrollment
   if (status === 'graded') {
     const { data: graded } = await supabase
       .from('submissions')
@@ -49,7 +49,9 @@ async function gradeSubmission(formData: FormData) {
 
     if (graded) {
       const relevant = graded.filter(
-        (g: any) => g.assignments?.internship_id === (updated as any).assignments?.internship_id,
+        (g: any) =>
+          g.assignments?.internship_id ===
+          (updated as any).assignments?.internship_id,
       );
       let weightedSum = 0;
       let totalWeight = 0;
@@ -78,16 +80,16 @@ async function gradeSubmission(formData: FormData) {
     details: { score: status === 'graded' ? score : null },
   });
 
-  revalidatePath(`/mentor/evaluate/${id}`);
-  revalidatePath('/mentor/evaluate');
+  revalidatePath(`/admin/submissions/${id}`);
+  revalidatePath('/admin/submissions');
 }
 
-export default async function EvaluatePage({
+export default async function AdminEvaluatePage({
   params,
 }: {
   params: { id: string };
 }) {
-  await requireRole(['mentor', 'admin']);
+  await requireRole(['admin', 'mentor']);
   const supabase = createClient();
 
   const { data: sub } = await supabase
@@ -106,12 +108,12 @@ export default async function EvaluatePage({
   return (
     <>
       <PageHeader
-        eyebrow={`Mentor / ${a?.internships?.title ?? '—'}`}
+        eyebrow={`Admin / ${a?.internships?.title ?? '—'}`}
         title={a?.title ?? 'Submission'}
         subtitle={`${student?.full_name ?? student?.email} · submitted ${formatDateTime(sub.submitted_at)}`}
         actions={
-          <Link href="/mentor/evaluate" className="btn btn-ghost">
-            <ArrowLeft size={16} /> Queue
+          <Link href="/admin/submissions" className="btn btn-ghost">
+            <ArrowLeft size={16} /> Submissions
           </Link>
         }
       />
@@ -121,24 +123,14 @@ export default async function EvaluatePage({
           <p className="eyebrow">Submission</p>
           <div className="mt-3 space-y-2 text-sm">
             {sub.github_url && (
-              <a
-                href={sub.github_url}
-                target="_blank"
-                rel="noreferrer"
-                className="flex items-center gap-2"
-                style={{ color: 'var(--accent)' }}
-              >
+              <a href={sub.github_url} target="_blank" rel="noreferrer"
+                className="flex items-center gap-2 link">
                 <Github size={16} /> {sub.github_url}
               </a>
             )}
             {sub.file_url && (
-              <a
-                href={sub.file_url}
-                target="_blank"
-                rel="noreferrer"
-                className="flex items-center gap-2"
-                style={{ color: 'var(--accent)' }}
-              >
+              <a href={sub.file_url} target="_blank" rel="noreferrer"
+                className="flex items-center gap-2 link">
                 <ExternalLink size={16} /> Download file
               </a>
             )}
@@ -181,12 +173,8 @@ export default async function EvaluatePage({
             </div>
           )}
           {a?.attachment_url && (
-            <a
-              href={a.attachment_url}
-              target="_blank"
-              rel="noreferrer"
-              className="text-sm inline-flex items-center gap-1 mt-3 link"
-            >
+            <a href={a.attachment_url} target="_blank" rel="noreferrer"
+              className="text-sm inline-flex items-center gap-1 mt-3 link">
               <ExternalLink size={14} /> Reference
             </a>
           )}
@@ -229,12 +217,7 @@ export default async function EvaluatePage({
           />
         </div>
         <div className="flex flex-wrap gap-2">
-          <button
-            type="submit"
-            name="action"
-            value="grade"
-            className="btn btn-primary"
-          >
+          <button type="submit" name="action" value="grade" className="btn btn-primary">
             {sub.status === 'graded' ? 'Update grade' : 'Grade & finalise'}
           </button>
           <button type="submit" name="action" value="review" className="btn btn-secondary">

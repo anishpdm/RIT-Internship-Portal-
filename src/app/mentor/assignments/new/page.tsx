@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
+import DateTimeField from '@/components/DateTimeField';
 import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
 import { requireRole } from '@/lib/auth';
@@ -162,7 +163,7 @@ export default async function MentorNewAssignmentPage() {
 
         <div>
           <label className="field-label">Due at</label>
-          <input type="datetime-local" name="due_at" className="field" />
+          <DateTimeField name="due_at" />
         </div>
 
         <div>

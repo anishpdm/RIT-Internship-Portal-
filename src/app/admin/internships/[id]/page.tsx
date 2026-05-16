@@ -5,6 +5,7 @@ import { requireRole } from '@/lib/auth';
 import { PageHeader, Pill, Stat } from '@/components/ui';
 import { logAudit } from '@/lib/audit';
 import { formatDate } from '@/lib/utils';
+import { TrendingUp } from 'lucide-react';
 
 async function updateInternshipStatus(formData: FormData) {
   'use server';
@@ -186,6 +187,12 @@ export default async function InternshipDetailPage({
         }
         actions={
           <>
+            <Link
+              href={`/admin/internships/${internship.id}/performance`}
+              className="btn btn-secondary"
+            >
+              <TrendingUp size={14} /> Performance
+            </Link>
             <form action={updateInternshipStatus}>
               <input type="hidden" name="id" value={internship.id} />
               <select

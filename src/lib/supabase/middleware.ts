@@ -19,7 +19,7 @@ export async function updateSession(request: NextRequest) {
           response.cookies.set({ name, value: '', ...options });
         },
       },
-    }
+    },
   );
 
   const {
@@ -32,7 +32,7 @@ export async function updateSession(request: NextRequest) {
       .from('profiles')
       .select('role')
       .eq('id', user.id)
-      .single();
+      .maybeSingle();
     role = profile?.role ?? null;
   }
 
@@ -44,24 +44,35 @@ export async function updateSession(request: NextRequest) {
     path.startsWith('/mentor') ||
     path.startsWith('/student');
 
+  // Not logged in but accessing protected route
   if (isProtected && !user) {
     const loginUrl = new URL('/login', request.url);
     loginUrl.searchParams.set('redirect', path);
     return NextResponse.redirect(loginUrl);
   }
 
+  // Logged in but profile not yet created (rare race condition)
+  if (isProtected && user && !role) {
+    // Let through; the layout's requireRole will handle gracefully
+    return response;
+  }
+
   if (user && role) {
+    // Role-based gating
     if (path.startsWith('/admin') && role !== 'admin') {
       return NextResponse.redirect(new URL(`/${role}`, request.url));
     }
+    // Mentor routes: only mentor OR admin allowed
     if (path.startsWith('/mentor') && role !== 'mentor' && role !== 'admin') {
       return NextResponse.redirect(new URL(`/${role}`, request.url));
     }
+    // Student routes: only student OR admin allowed
     if (path.startsWith('/student') && role !== 'student' && role !== 'admin') {
       return NextResponse.redirect(new URL(`/${role}`, request.url));
     }
-    // After login, send the user to their home portal
-    if (path === '/login' && user) {
+
+    // If already signed in and visiting /login or /, send to your home portal
+    if (path === '/login' || path === '/') {
       return NextResponse.redirect(new URL(`/${role}`, request.url));
     }
   }

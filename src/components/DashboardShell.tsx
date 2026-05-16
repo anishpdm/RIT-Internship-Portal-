@@ -16,6 +16,7 @@ import {
   LogOut,
   FileCheck,
   ShieldCheck,
+  TrendingUp,
   type LucideIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -43,6 +44,7 @@ const NAV: Record<UserRole, NavItem[]> = {
     { href: '/mentor/sessions', label: 'Sessions', icon: Calendar },
     { href: '/mentor/assignments', label: 'Assignments', icon: ClipboardCheck },
     { href: '/mentor/evaluate', label: 'Evaluate', icon: FileCheck },
+    { href: '/mentor/performance', label: 'Performance', icon: TrendingUp },
   ],
   student: [
     { href: '/student', label: 'Overview', icon: LayoutDashboard },

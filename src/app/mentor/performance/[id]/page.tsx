@@ -147,7 +147,9 @@ export default async function MentorInternshipPerformancePage({
                       )}
                     </td>
                     <td>
-                      <p className="font-medium">{r.full_name ?? '—'}</p>
+                      <Link href={`/mentor/students/${r.student_id}`} className="link font-medium">
+                        {r.full_name ?? '—'}
+                      </Link>
                       <p className="text-xs" style={{ color: 'var(--ink-500)' }}>{r.email}</p>
                     </td>
                     <td className="font-mono text-xs">L{r.current_level}</td>

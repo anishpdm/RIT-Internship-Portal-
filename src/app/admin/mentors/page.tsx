@@ -5,6 +5,7 @@ import { requireRole } from '@/lib/auth';
 import { PageHeader, EmptyState } from '@/components/ui';
 import { logAudit } from '@/lib/audit';
 import { UserPlus, Trash2 } from 'lucide-react';
+import ResetPasswordButton from '@/components/ResetPasswordButton';
 
 export const dynamic = 'force-dynamic';
 
@@ -56,6 +57,33 @@ async function deleteMentor(formData: FormData) {
     entity_id: id,
   });
   redirect('/admin/mentors');
+}
+
+async function resetMentorPassword(
+  formData: FormData,
+): Promise<{ ok: boolean; password?: string; error?: string }> {
+  'use server';
+  const me = await requireRole('admin');
+  const admin = createAdminClient();
+  const id = String(formData.get('user_id'));
+  const password = String(formData.get('password'));
+
+  if (!id || !password || password.length < 8) {
+    return { ok: false, error: 'Invalid input' };
+  }
+
+  const { error } = await admin.auth.admin.updateUserById(id, { password });
+  if (error) return { ok: false, error: error.message };
+
+  await logAudit({
+    actor_id: me.userId,
+    actor_role: 'admin',
+    action: 'password.reset',
+    entity_type: 'profile',
+    entity_id: id,
+  });
+
+  return { ok: true, password };
 }
 
 export default async function MentorsPage() {
@@ -145,12 +173,19 @@ export default async function MentorsPage() {
                     {(byMentor.get(m.id) ?? []).join(', ') || '—'}
                   </td>
                   <td>
-                    <form action={deleteMentor}>
-                      <input type="hidden" name="id" value={m.id} />
-                      <button className="btn btn-ghost text-xs" type="submit">
-                        <Trash2 size={12} /> Remove
-                      </button>
-                    </form>
+                    <div className="flex gap-2 items-center">
+                      <ResetPasswordButton
+                        userId={m.id}
+                        userName={m.full_name ?? m.email}
+                        action={resetMentorPassword}
+                      />
+                      <form action={deleteMentor}>
+                        <input type="hidden" name="id" value={m.id} />
+                        <button className="btn btn-ghost text-xs" type="submit">
+                          <Trash2 size={12} /> Remove
+                        </button>
+                      </form>
+                    </div>
                   </td>
                 </tr>
               ))}

@@ -1,10 +1,60 @@
 import Link from 'next/link';
-import { createClient } from '@/lib/supabase/server';
+import { createClient, createAdminClient } from '@/lib/supabase/server';
 import { requireRole } from '@/lib/auth';
+import { logAudit } from '@/lib/audit';
 import { PageHeader, Pill, EmptyState } from '@/components/ui';
 import { UserPlus } from 'lucide-react';
+import ResetPasswordButton from '@/components/ResetPasswordButton';
 
 export const dynamic = 'force-dynamic';
+
+async function resetStudentPassword(
+  formData: FormData,
+): Promise<{ ok: boolean; password?: string; error?: string }> {
+  'use server';
+  const me = await requireRole(['mentor', 'admin']);
+  const supabase = createClient();
+  const admin = createAdminClient();
+  const target_id = String(formData.get('user_id'));
+  const password = String(formData.get('password'));
+
+  if (!target_id || !password || password.length < 8) {
+    return { ok: false, error: 'Invalid input' };
+  }
+
+  // Mentor must share an internship with this student
+  if (me.profile.role === 'mentor') {
+    const { data: myAssign } = await supabase
+      .from('mentor_assignments')
+      .select('internship_id')
+      .eq('mentor_id', me.userId);
+    const internshipIds = (myAssign ?? []).map((a: any) => a.internship_id);
+
+    const { data: studentEnr } = await supabase
+      .from('enrollments')
+      .select('internship_id')
+      .eq('student_id', target_id);
+    const studentIds = (studentEnr ?? []).map((e: any) => e.internship_id);
+
+    const overlap = internshipIds.some((id) => studentIds.includes(id));
+    if (!overlap) {
+      return { ok: false, error: 'You can only reset passwords for students in your internships.' };
+    }
+  }
+
+  const { error } = await admin.auth.admin.updateUserById(target_id, { password });
+  if (error) return { ok: false, error: error.message };
+
+  await logAudit({
+    actor_id: me.userId,
+    actor_role: me.profile.role,
+    action: 'password.reset',
+    entity_type: 'profile',
+    entity_id: target_id,
+  });
+
+  return { ok: true, password };
+}
 
 export default async function MentorStudentsPage({
   searchParams,
@@ -103,13 +153,16 @@ export default async function MentorStudentsPage({
                 <th>Level</th>
                 <th>Status</th>
                 <th>Score</th>
+                <th></th>
               </tr>
             </thead>
             <tbody>
               {enrollments.map((e: any) => (
                 <tr key={e.id}>
                   <td>
-                    <p className="font-medium">{e.profiles?.full_name ?? '—'}</p>
+                    <Link href={`/mentor/students/${e.profiles?.id}`} className="link font-medium">
+                      {e.profiles?.full_name ?? '—'}
+                    </Link>
                     <p className="text-xs" style={{ color: 'var(--ink-500)' }}>
                       {e.profiles?.email}
                     </p>
@@ -135,6 +188,21 @@ export default async function MentorStudentsPage({
                   </td>
                   <td className="font-mono text-sm">
                     {Number(e.total_score).toFixed(1)}
+                  </td>
+                  <td>
+                    <div className="flex gap-2 items-center">
+                      <Link
+                        href={`/mentor/students/${e.profiles?.id}`}
+                        className="link text-sm"
+                      >
+                        View progress →
+                      </Link>
+                      <ResetPasswordButton
+                        userId={e.profiles?.id}
+                        userName={e.profiles?.full_name ?? e.profiles?.email}
+                        action={resetStudentPassword}
+                      />
+                    </div>
                   </td>
                 </tr>
               ))}

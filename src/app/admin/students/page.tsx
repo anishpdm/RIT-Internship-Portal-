@@ -5,6 +5,7 @@ import { requireRole } from '@/lib/auth';
 import { PageHeader, Pill, EmptyState } from '@/components/ui';
 import { logAudit } from '@/lib/audit';
 import { Search, UserPlus, Trash2 } from 'lucide-react';
+import ResetPasswordButton from '@/components/ResetPasswordButton';
 
 export const dynamic = 'force-dynamic';
 
@@ -65,6 +66,33 @@ async function deleteStudent(formData: FormData) {
     entity_id: id,
   });
   redirect('/admin/students');
+}
+
+async function resetStudentPassword(
+  formData: FormData,
+): Promise<{ ok: boolean; password?: string; error?: string }> {
+  'use server';
+  const me = await requireRole('admin');
+  const admin = createAdminClient();
+  const id = String(formData.get('user_id'));
+  const password = String(formData.get('password'));
+
+  if (!id || !password || password.length < 8) {
+    return { ok: false, error: 'Invalid input' };
+  }
+
+  const { error } = await admin.auth.admin.updateUserById(id, { password });
+  if (error) return { ok: false, error: error.message };
+
+  await logAudit({
+    actor_id: me.userId,
+    actor_role: 'admin',
+    action: 'password.reset',
+    entity_type: 'profile',
+    entity_id: id,
+  });
+
+  return { ok: true, password };
 }
 
 export default async function StudentsPage({
@@ -177,19 +205,33 @@ export default async function StudentsPage({
             <tbody>
               {students.map((s) => (
                 <tr key={s.id}>
-                  <td className="font-medium">{s.full_name}</td>
+                  <td className="font-medium">
+                    <Link href={`/admin/students/${s.id}`} className="link">
+                      {s.full_name}
+                    </Link>
+                  </td>
                   <td className="font-mono text-xs">{s.email}</td>
                   <td>{s.phone ?? '—'}</td>
                   <td className="text-xs" style={{ color: 'var(--ink-500)' }}>
                     {new Date(s.created_at).toLocaleDateString('en-IN')}
                   </td>
                   <td>
-                    <form action={deleteStudent}>
-                      <input type="hidden" name="id" value={s.id} />
-                      <button className="btn btn-ghost text-xs" type="submit">
-                        <Trash2 size={12} /> Remove
-                      </button>
-                    </form>
+                    <div className="flex gap-2 items-center">
+                      <Link href={`/admin/students/${s.id}`} className="link text-xs">
+                        View progress →
+                      </Link>
+                      <ResetPasswordButton
+                        userId={s.id}
+                        userName={s.full_name ?? s.email}
+                        action={resetStudentPassword}
+                      />
+                      <form action={deleteStudent}>
+                        <input type="hidden" name="id" value={s.id} />
+                        <button className="btn btn-ghost text-xs" type="submit">
+                          <Trash2 size={12} />
+                        </button>
+                      </form>
+                    </div>
                   </td>
                 </tr>
               ))}

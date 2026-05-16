@@ -37,6 +37,7 @@ const NAV: Record<UserRole, NavItem[]> = {
     { href: '/admin/assignments', label: 'Assignments', icon: ClipboardCheck },
     { href: '/admin/submissions', label: 'Submissions', icon: FileCheck },
     { href: '/admin/logs', label: 'Audit logs', icon: ScrollText },
+    { href: '/admin/profile', label: 'Account', icon: UserCircle2 },
   ],
   mentor: [
     { href: '/mentor', label: 'Overview', icon: LayoutDashboard },
@@ -45,12 +46,13 @@ const NAV: Record<UserRole, NavItem[]> = {
     { href: '/mentor/assignments', label: 'Assignments', icon: ClipboardCheck },
     { href: '/mentor/evaluate', label: 'Evaluate', icon: FileCheck },
     { href: '/mentor/performance', label: 'Performance', icon: TrendingUp },
+    { href: '/mentor/profile', label: 'Account', icon: UserCircle2 },
   ],
   student: [
     { href: '/student', label: 'Overview', icon: LayoutDashboard },
     { href: '/student/sessions', label: 'Sessions', icon: Calendar },
     { href: '/student/assignments', label: 'Assignments', icon: BookOpen },
-    { href: '/student/profile', label: 'Profile', icon: UserCircle2 },
+    { href: '/student/profile', label: 'Account', icon: UserCircle2 },
   ],
 };
 

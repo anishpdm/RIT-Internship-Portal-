@@ -144,7 +144,9 @@ export default async function InternshipPerformancePage({
                       )}
                     </td>
                     <td>
-                      <p className="font-medium">{r.full_name ?? '—'}</p>
+                      <Link href={`/admin/students/${r.student_id}`} className="link font-medium">
+                        {r.full_name ?? '—'}
+                      </Link>
                       <p className="text-xs" style={{ color: 'var(--ink-500)' }}>
                         {r.email}
                       </p>

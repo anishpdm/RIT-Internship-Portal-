@@ -9,7 +9,7 @@ export const dynamic = 'force-dynamic';
 
 async function updateProfile(formData: FormData) {
   'use server';
-  const me = await requireRole(['student', 'admin']);
+  const me = await requireRole(['mentor', 'admin']);
   const supabase = createClient();
 
   const full_name = String(formData.get('full_name') ?? '').trim();
@@ -33,18 +33,18 @@ async function updateProfile(formData: FormData) {
     entity_id: me.userId,
   });
 
-  revalidatePath('/student/profile');
+  revalidatePath('/mentor/settings');
 }
 
-export default async function StudentProfilePage() {
-  const me = await requireRole(['student', 'admin']);
+export default async function MentorSettingsPage() {
+  const me = await requireRole(['mentor', 'admin']);
 
   return (
     <>
       <PageHeader
-        eyebrow="Student"
-        title="Your profile"
-        subtitle="Keep your details current — mentors see this when reviewing your work."
+        eyebrow="Mentor"
+        title="Account settings"
+        subtitle="Update your profile and change your password."
       />
 
       <div className="grid lg:grid-cols-2 gap-6">
@@ -66,10 +66,10 @@ export default async function StudentProfilePage() {
             <label className="field-label">Bio</label>
             <textarea
               name="bio"
-              rows={4}
+              rows={3}
               className="field"
               defaultValue={me.profile.bio ?? ''}
-              placeholder="A line or two about you — your interests, your work."
+              placeholder="Short bio shown to your students."
             />
           </div>
           <div className="flex justify-end">

@@ -1,12 +1,15 @@
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
+import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
 import { requireRole } from '@/lib/auth';
 import { PageHeader, Pill, Stat } from '@/components/ui';
 import { logAudit } from '@/lib/audit';
 import { formatDate } from '@/lib/utils';
-import { TrendingUp, Pencil, Upload, Trash2 } from 'lucide-react';
+import { TrendingUp, Pencil, Upload, Trash2, Layers } from 'lucide-react';
 import ConfirmDeleteButton from '@/components/ConfirmDeleteButton';
+
+export const dynamic = 'force-dynamic';
 
 async function updateInternshipStatus(formData: FormData) {
   'use server';
@@ -71,6 +74,7 @@ async function promoteOrFilter(formData: FormData) {
   const supabase = createClient();
   const id = String(formData.get('enrollment_id'));
   const action = String(formData.get('action'));
+  const internship_id = String(formData.get('internship_id'));
 
   if (action === 'promote') {
     const { data: enr } = await supabase
@@ -79,7 +83,7 @@ async function promoteOrFilter(formData: FormData) {
       .eq('id', id)
       .single();
     if (enr) {
-      await supabase
+      const { error: updErr } = await supabase
         .from('enrollments')
         .update({
           current_level: enr.current_level + 1,
@@ -87,11 +91,25 @@ async function promoteOrFilter(formData: FormData) {
           promoted_at: new Date().toISOString(),
         })
         .eq('id', id);
+      if (updErr) {
+        console.error('Promote failed:', updErr);
+        throw new Error('Promote failed: ' + updErr.message);
+      }
     }
   } else if (action === 'filter') {
-    await supabase
+    const { error: updErr } = await supabase
       .from('enrollments')
       .update({ status: 'filtered', filtered_at: new Date().toISOString() })
+      .eq('id', id);
+    if (updErr) {
+      console.error('Filter failed:', updErr);
+      throw new Error('Filter failed: ' + updErr.message);
+    }
+  } else if (action === 'unfilter') {
+    // Restore a filtered student back to active
+    await supabase
+      .from('enrollments')
+      .update({ status: 'active', filtered_at: null })
       .eq('id', id);
   }
   await logAudit({
@@ -101,7 +119,9 @@ async function promoteOrFilter(formData: FormData) {
     entity_type: 'enrollment',
     entity_id: id,
   });
-  const internship_id = String(formData.get('internship_id'));
+  revalidatePath(`/admin/internships/${internship_id}`);
+  revalidatePath(`/admin/internships/${internship_id}/levels`);
+  revalidatePath(`/admin/internships/${internship_id}/performance`);
   redirect(`/admin/internships/${internship_id}`);
 }
 
@@ -121,6 +141,7 @@ async function assignMentor(formData: FormData) {
     entity_type: 'mentor_assignment',
     details: { internship_id, mentor_id },
   });
+  revalidatePath(`/admin/internships/${internship_id}`);
   redirect(`/admin/internships/${internship_id}`);
 }
 
@@ -193,6 +214,12 @@ export default async function InternshipDetailPage({
               className="btn btn-secondary"
             >
               <TrendingUp size={14} /> Performance
+            </Link>
+            <Link
+              href={`/admin/internships/${internship.id}/levels`}
+              className="btn btn-secondary"
+            >
+              <Layers size={14} /> Levels
             </Link>
             <Link
               href={`/admin/internships/${internship.id}/edit`}

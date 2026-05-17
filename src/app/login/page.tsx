@@ -40,6 +40,17 @@ export default function LoginPage() {
       if (profile?.role) targetRole = profile.role;
     }
 
+    // Log the login event (best-effort, don't block redirect on failure)
+    try {
+      await fetch('/api/auth/log-event', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ event: 'login' }),
+      });
+    } catch {
+      // ignore
+    }
+
     setLoading(false);
     // Hard reload so the server-side middleware reads the new cookie reliably
     window.location.href = `/${targetRole}`;

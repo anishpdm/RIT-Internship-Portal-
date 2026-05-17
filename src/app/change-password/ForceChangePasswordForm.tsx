@@ -55,6 +55,19 @@ export default function ForceChangePasswordForm({
   }
 
   async function signOut() {
+    // Capture user id and log logout
+    let userId: string | null = null;
+    try {
+      const { data } = await supabase.auth.getUser();
+      userId = data.user?.id ?? null;
+    } catch {}
+    try {
+      await fetch('/api/auth/log-event', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ event: 'logout', user_id: userId }),
+      });
+    } catch {}
     await supabase.auth.signOut();
     window.location.href = '/login';
   }

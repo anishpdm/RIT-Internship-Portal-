@@ -48,60 +48,85 @@ export default async function StudentLeaderboardPage() {
   }
 
   // Get leaderboard rows for each internship
-  const leaderboards: Record<string, LeaderRow[]> = {};
-  const quizAggregates: Record<string, Map<string, { score: number; correct: number; total: number }>> = {};
+  const internshipIds = internships.map((i: any) => i.id);
 
-  for (const i of internships) {
-    const { data: rows } = await supabase
+  // PARALLEL FETCH: all the heavy data in one round-trip wave instead of N sequential queries.
+  const [leaderboardData, quizData, assignmentsData] = await Promise.all([
+    // 1. Leaderboard rows for all internships at once
+    supabase
       .from('v_internship_leaderboard')
       .select('*')
-      .eq('internship_id', i.id)
-      .order('total_score', { ascending: false });
-    leaderboards[i.id] = (rows ?? []) as LeaderRow[];
-
-    // Quiz aggregate per student in this internship
-    const { data: quizRows } = await supabase
+      .in('internship_id', internshipIds)
+      .order('total_score', { ascending: false }),
+    // 2. Quiz aggregates for all internships at once
+    supabase
       .from('v_student_quiz_aggregate')
-      .select('student_id, quiz_score_pct, questions_answered, questions_correct')
-      .eq('internship_id', i.id);
-    const m = new Map<string, { score: number; correct: number; total: number }>();
-    for (const q of quizRows ?? []) {
-      m.set((q as any).student_id, {
-        score: Number((q as any).quiz_score_pct ?? 0),
-        correct: Number((q as any).questions_correct ?? 0),
-        total: Number((q as any).questions_answered ?? 0),
-      });
-    }
-    quizAggregates[i.id] = m;
-  }
-
-  // For each internship, find per-assignment top scorer
-  const assignmentToppers: Record<string, any[]> = {};
-  for (const i of internships) {
-    const { data: assignments } = await supabase
+      .select(
+        'student_id, internship_id, quiz_score_pct, questions_answered, questions_correct',
+      )
+      .in('internship_id', internshipIds),
+    // 3. Every assignment in every enrolled internship
+    supabase
       .from('assignments')
-      .select('id, title, kind, max_score')
-      .eq('internship_id', i.id);
+      .select('id, title, kind, max_score, internship_id')
+      .in('internship_id', internshipIds),
+  ]);
 
-    const toppers: any[] = [];
-    for (const a of assignments ?? []) {
-      const { data: topSub } = await supabase
+  const allAssignments = assignmentsData.data ?? [];
+  const allAssignmentIds = allAssignments.map((a: any) => a.id);
+
+  // 4. ALL graded submissions across ALL assignments — one query, no loops
+  const { data: allSubmissions } = allAssignmentIds.length
+    ? await supabase
         .from('submissions')
         .select(
-          'score, student_id, profiles:student_id (full_name, email)',
+          'assignment_id, score, student_id, profiles:student_id (full_name, email)',
         )
-        .eq('assignment_id', a.id)
+        .in('assignment_id', allAssignmentIds)
         .eq('status', 'graded')
         .order('score', { ascending: false })
-        .limit(1);
-      if (topSub && topSub.length > 0) {
-        toppers.push({
-          ...a,
-          topper: topSub[0],
-        });
-      }
+    : { data: [] as any[] };
+
+  // Group submissions by assignment_id — first hit per assignment is the topper (since we ordered desc)
+  const topperByAssignment = new Map<string, any>();
+  for (const sub of allSubmissions ?? []) {
+    if (!topperByAssignment.has(sub.assignment_id)) {
+      topperByAssignment.set(sub.assignment_id, sub);
     }
-    assignmentToppers[i.id] = toppers;
+  }
+
+  // Group leaderboard rows by internship_id
+  const leaderboards: Record<string, LeaderRow[]> = {};
+  for (const row of (leaderboardData.data ?? []) as any[]) {
+    const list = leaderboards[row.internship_id] ?? [];
+    list.push(row);
+    leaderboards[row.internship_id] = list;
+  }
+
+  // Group quiz aggregates by internship_id
+  const quizAggregates: Record<
+    string,
+    Map<string, { score: number; correct: number; total: number }>
+  > = {};
+  for (const q of (quizData.data ?? []) as any[]) {
+    const m = quizAggregates[q.internship_id] ?? new Map();
+    m.set(q.student_id, {
+      score: Number(q.quiz_score_pct ?? 0),
+      correct: Number(q.questions_correct ?? 0),
+      total: Number(q.questions_answered ?? 0),
+    });
+    quizAggregates[q.internship_id] = m;
+  }
+
+  // Build per-internship topper list from the pre-computed map
+  const assignmentToppers: Record<string, any[]> = {};
+  for (const i of internships) {
+    const list: any[] = [];
+    for (const a of allAssignments.filter((x: any) => x.internship_id === i.id)) {
+      const top = topperByAssignment.get(a.id);
+      if (top) list.push({ ...a, topper: top });
+    }
+    assignmentToppers[i.id] = list;
   }
 
   return (

@@ -37,21 +37,25 @@ export default async function MentorInternshipPerformancePage({
 
   if (!internship) notFound();
 
-  const { data: rows } = await supabase
-    .from('v_internship_leaderboard')
-    .select('*')
-    .eq('internship_id', params.id)
-    .order('total_score', { ascending: false });
-
-  const { count: totalSessions } = await supabase
-    .from('sessions')
-    .select('id', { count: 'exact', head: true })
-    .eq('internship_id', params.id);
-
-  const { count: totalAssignments } = await supabase
-    .from('assignments')
-    .select('id', { count: 'exact', head: true })
-    .eq('internship_id', params.id);
+  // PARALLEL FETCH for free-tier speed
+  const [leaderboardRes, sessionsCountRes, assignmentsCountRes] = await Promise.all([
+    supabase
+      .from('v_internship_leaderboard')
+      .select('*')
+      .eq('internship_id', params.id)
+      .order('total_score', { ascending: false }),
+    supabase
+      .from('sessions')
+      .select('id', { count: 'exact', head: true })
+      .eq('internship_id', params.id),
+    supabase
+      .from('assignments')
+      .select('id', { count: 'exact', head: true })
+      .eq('internship_id', params.id),
+  ]);
+  const rows = leaderboardRes.data;
+  const totalSessions = sessionsCountRes.count;
+  const totalAssignments = assignmentsCountRes.count;
 
   const studentIds = (rows ?? []).map((r: any) => r.student_id);
   let submittedMap = new Map<string, number>();

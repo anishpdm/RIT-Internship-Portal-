@@ -105,6 +105,22 @@ export function DashboardShell({
   }, [open]);
 
   async function signOut() {
+    // Capture user id so the audit endpoint can still attribute the event
+    let userId: string | null = null;
+    try {
+      const { data } = await supabase.auth.getUser();
+      userId = data.user?.id ?? null;
+    } catch {}
+
+    // Log logout BEFORE signing out so the cookie is still valid
+    try {
+      await fetch('/api/auth/log-event', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ event: 'logout', user_id: userId }),
+      });
+    } catch {}
+
     await supabase.auth.signOut();
     router.push('/login');
     router.refresh();

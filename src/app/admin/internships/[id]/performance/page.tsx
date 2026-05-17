@@ -26,23 +26,25 @@ export default async function InternshipPerformancePage({
 
   if (!internship) notFound();
 
-  // Use the leaderboard view
-  const { data: rows } = await supabase
-    .from('v_internship_leaderboard')
-    .select('*')
-    .eq('internship_id', params.id)
-    .order('total_score', { ascending: false });
-
-  // Total sessions and assignments for percentage calculations
-  const { count: totalSessions } = await supabase
-    .from('sessions')
-    .select('id', { count: 'exact', head: true })
-    .eq('internship_id', params.id);
-
-  const { count: totalAssignments } = await supabase
-    .from('assignments')
-    .select('id', { count: 'exact', head: true })
-    .eq('internship_id', params.id);
+  // PARALLEL FETCH: leaderboard, sessions count, assignments count — all in one wave
+  const [leaderboardRes, sessionsCountRes, assignmentsCountRes] = await Promise.all([
+    supabase
+      .from('v_internship_leaderboard')
+      .select('*')
+      .eq('internship_id', params.id)
+      .order('total_score', { ascending: false }),
+    supabase
+      .from('sessions')
+      .select('id', { count: 'exact', head: true })
+      .eq('internship_id', params.id),
+    supabase
+      .from('assignments')
+      .select('id', { count: 'exact', head: true })
+      .eq('internship_id', params.id),
+  ]);
+  const rows = leaderboardRes.data;
+  const totalSessions = sessionsCountRes.count;
+  const totalAssignments = assignmentsCountRes.count;
 
   // Per-student submitted (not necessarily graded) count
   const studentIds = (rows ?? []).map((r: any) => r.student_id);

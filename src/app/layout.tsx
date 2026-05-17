@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import './globals.css';
+import RouteProgress from '@/components/RouteProgress';
 
 export const metadata: Metadata = {
   title: 'RIT Internship Portal',
@@ -14,7 +15,23 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <head>
+        {/* Preconnect to Google Fonts CDN for faster font load */}
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link
+          rel="preconnect"
+          href="https://fonts.gstatic.com"
+          crossOrigin=""
+        />
+        <link
+          rel="stylesheet"
+          href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap"
+        />
+      </head>
+      <body>
+        <RouteProgress />
+        {children}
+      </body>
     </html>
   );
 }

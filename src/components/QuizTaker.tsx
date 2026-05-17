@@ -103,11 +103,23 @@ export default function QuizTaker({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state?.quiz?.status, state?.quiz?.id]);
 
-  async function submit(optionIdx: number) {
-    if (!state?.question) return;
-    if (state.myResponse) return; // already locked in
-    setSubmitting(true);
+  // Pick an option (no API call — just visual selection)
+  function pickOption(optionIdx: number) {
+    if (state?.myResponse) return; // locked
+    if (submitting) return;
     setSelected(optionIdx);
+    setErr(null);
+  }
+
+  // Send the picked option to the server
+  async function submitAnswer() {
+    if (!state?.question) return;
+    if (state.myResponse) return;
+    if (selected === null) {
+      setErr('Pick an option first.');
+      return;
+    }
+    setSubmitting(true);
     setErr(null);
     try {
       const res = await fetch('/api/quiz/respond', {
@@ -115,18 +127,16 @@ export default function QuizTaker({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           question_id: state.question.id,
-          selected_option: optionIdx,
+          selected_option: selected,
         }),
       });
       const data = await res.json();
       if (!res.ok) {
         setErr(data.error ?? 'Failed to submit');
-        setSelected(null);
       }
       await fetchState();
     } catch {
-      setErr('Network error');
-      setSelected(null);
+      setErr('Network error — try again.');
     } finally {
       setSubmitting(false);
     }
@@ -281,9 +291,10 @@ export default function QuizTaker({
       {/* Options */}
       <div className="space-y-3" key={`opts-${question.id}`}>
         {question.options.map((opt, i) => {
-          const isMine = myAnswer === i;
+          const submittedThis = myAnswer === i;
+          const pickedThis = !myResponse && selected === i;
           const isCorrect = reveal && correctOpt === i;
-          const isWrongMine = reveal && isMine && correctOpt !== i;
+          const isWrongMine = reveal && submittedThis && correctOpt !== i;
           const disabled = !!myResponse || submitting;
 
           let bg = 'var(--paper)';
@@ -298,17 +309,23 @@ export default function QuizTaker({
             bg = 'var(--red-soft)';
             border = 'var(--red-500)';
             color = 'var(--red-700)';
-          } else if (isMine) {
+          } else if (submittedThis) {
+            // Locked-in answer (waiting for reveal)
             bg = 'var(--accent-soft)';
             border = 'var(--accent)';
             color = 'var(--accent)';
+          } else if (pickedThis) {
+            // Currently picked but not yet submitted — solid accent fill
+            bg = 'var(--accent)';
+            border = 'var(--accent)';
+            color = 'white';
           }
 
           return (
             <button
               type="button"
               key={i}
-              onClick={() => submit(i)}
+              onClick={() => pickOption(i)}
               disabled={disabled}
               className="quiz-option"
               style={{
@@ -334,11 +351,14 @@ export default function QuizTaker({
                     ? 'var(--green-500)'
                     : isWrongMine
                       ? 'var(--red-500)'
-                      : isMine
-                        ? 'var(--accent)'
-                        : 'var(--ink-100)',
-                  color:
-                    isCorrect || isWrongMine || isMine
+                      : pickedThis
+                        ? 'white'
+                        : submittedThis
+                          ? 'var(--accent)'
+                          : 'var(--ink-100)',
+                  color: pickedThis
+                    ? 'var(--accent)'
+                    : isCorrect || isWrongMine || submittedThis
                       ? 'white'
                       : 'var(--ink-700)',
                 }}
@@ -358,15 +378,48 @@ export default function QuizTaker({
         })}
       </div>
 
-      {/* Footer state */}
+      {/* Submit Answer button — visible until the answer is locked in */}
       {!myResponse && !reveal && (
-        <p
-          className="text-center text-sm"
-          style={{ color: 'var(--ink-500)' }}
+        <div
+          className="card"
+          style={{ position: 'sticky', bottom: 12, padding: '0.85rem 1rem' }}
         >
-          Pick an option to lock in your answer. You can&apos;t change it once submitted.
-        </p>
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <p
+              className="text-sm"
+              style={{ color: 'var(--ink-500)' }}
+            >
+              {selected === null ? (
+                <>👆 Pick an option above</>
+              ) : (
+                <>
+                  Selected:{' '}
+                  <span
+                    className="font-mono font-semibold"
+                    style={{ color: 'var(--accent)' }}
+                  >
+                    {String.fromCharCode(65 + selected)}
+                  </span>{' '}
+                  — change it any time before submitting.
+                </>
+              )}
+            </p>
+            <button
+              type="button"
+              onClick={submitAnswer}
+              disabled={selected === null || submitting}
+              className="btn btn-primary"
+              style={{
+                opacity: selected === null || submitting ? 0.5 : 1,
+              }}
+            >
+              {submitting ? 'Submitting…' : 'Submit answer'}
+            </button>
+          </div>
+        </div>
       )}
+
+      {/* Footer state */}
       {myResponse && !reveal && (
         <div
           className="text-center text-sm flex items-center justify-center gap-2"

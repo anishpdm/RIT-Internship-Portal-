@@ -9,48 +9,113 @@ export const dynamic = 'force-dynamic';
 
 const PAGE_SIZE = 50;
 
-export default async function AuditLogsPage({
+export default async function MentorLogsPage({
   searchParams,
 }: {
   searchParams: {
     page?: string;
     action?: string;
-    role?: string;
     actor?: string;
   };
 }) {
-  await requireRole('admin');
+  const me = await requireRole(['mentor', 'admin']);
   const page = Math.max(1, parseInt(searchParams.page ?? '1', 10));
   const from = (page - 1) * PAGE_SIZE;
   const to = from + PAGE_SIZE - 1;
 
   const supabase = createClient();
 
+  // Get the mentor's internships
+  let internshipIds: string[] = [];
+  if (me.profile.role === 'mentor') {
+    const { data: mas } = await supabase
+      .from('mentor_assignments')
+      .select('internship_id')
+      .eq('mentor_id', me.userId);
+    internshipIds = (mas ?? []).map((m: any) => m.internship_id);
+  }
+
+  // Get all student IDs the mentor can see
+  let studentIds: string[] = [];
+  if (me.profile.role === 'mentor') {
+    if (internshipIds.length === 0) {
+      return (
+        <>
+          <PageHeader
+            eyebrow="Mentor"
+            title="Student activity"
+            subtitle="Audit log of every action your students take."
+          />
+          <EmptyState
+            title="You aren't assigned to any internship yet"
+            hint="Once you're assigned, your students' activity will show up here."
+          />
+        </>
+      );
+    }
+    const { data: enrs } = await supabase
+      .from('enrollments')
+      .select('student_id')
+      .in('internship_id', internshipIds);
+    studentIds = Array.from(
+      new Set((enrs ?? []).map((e: any) => e.student_id)),
+    );
+  } else {
+    // Admin sees all students
+    const { data: ss } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('role', 'student');
+    studentIds = (ss ?? []).map((s: any) => s.id);
+  }
+
+  if (studentIds.length === 0) {
+    return (
+      <>
+        <PageHeader
+          eyebrow="Mentor"
+          title="Student activity"
+          subtitle="Audit log of every action your students take."
+        />
+        <EmptyState
+          title="No students yet"
+          hint="Once students enrol in your internships, their actions will appear here."
+        />
+      </>
+    );
+  }
+
+  // Build student list for the filter
+  const { data: students } = await supabase
+    .from('profiles')
+    .select('id, full_name, email')
+    .in('id', studentIds)
+    .order('full_name');
+
+  // Query audit_logs for these students only
   let query = supabase
     .from('audit_logs')
     .select(
       'id, action, entity_type, entity_id, actor_role, actor_id, details, created_at, profiles:actor_id (full_name, email)',
       { count: 'exact' },
     )
+    .in('actor_id', studentIds)
     .order('created_at', { ascending: false })
     .range(from, to);
 
   if (searchParams.action) query = query.eq('action', searchParams.action);
-  if (searchParams.role) query = query.eq('actor_role', searchParams.role);
-  if (searchParams.actor) query = query.eq('actor_id', searchParams.actor);
+  if (searchParams.actor && studentIds.includes(searchParams.actor)) {
+    query = query.eq('actor_id', searchParams.actor);
+  }
 
   const { data: logs, count } = await query;
   const totalPages = count ? Math.ceil(count / PAGE_SIZE) : 1;
 
-  const { data: actors } = await supabase
-    .from('profiles')
-    .select('id, full_name, email, role')
-    .in('role', ['mentor', 'student'])
-    .order('full_name');
-
+  // Distinct action names — within scope only
   const { data: distinctActions } = await supabase
     .from('audit_logs')
     .select('action')
+    .in('actor_id', studentIds)
     .limit(500);
   const actionSet = new Set<string>(
     (distinctActions ?? []).map((a: any) => a.action),
@@ -61,7 +126,6 @@ export default async function AuditLogsPage({
     const params = new URLSearchParams();
     const merged = {
       page: undefined as string | undefined,
-      role: searchParams.role,
       actor: searchParams.actor,
       action: searchParams.action,
       ...overrides,
@@ -70,60 +134,35 @@ export default async function AuditLogsPage({
       if (v) params.set(k, v);
     }
     const qs = params.toString();
-    return `/admin/logs${qs ? `?${qs}` : ''}`;
+    return `/mentor/logs${qs ? `?${qs}` : ''}`;
   }
 
-  const hasFilters =
-    !!searchParams.role || !!searchParams.actor || !!searchParams.action;
-
+  const hasFilters = !!searchParams.actor || !!searchParams.action;
   const currentActor = searchParams.actor
-    ? actors?.find((a) => a.id === searchParams.actor)
+    ? students?.find((s) => s.id === searchParams.actor)
     : null;
 
   return (
     <>
       <PageHeader
-        eyebrow="Admin"
-        title="Audit logs"
-        subtitle="Every privileged action — who, when, what. Use the filters to narrow by mentor, student, role, or action type."
+        eyebrow="Mentor"
+        title="Student activity"
+        subtitle="Audit log of every action your students take — submissions, attendance, quiz responses."
       />
 
       <div className="card mb-6 space-y-4">
         <p className="eyebrow">Filters</p>
 
-        <form action="/admin/logs" method="get" className="grid sm:grid-cols-3 gap-3">
+        <form action="/mentor/logs" method="get" className="grid sm:grid-cols-2 gap-3">
           <div>
-            <label className="field-label">Role</label>
-            <select name="role" defaultValue={searchParams.role ?? ''} className="field">
-              <option value="">All roles</option>
-              <option value="admin">Admin</option>
-              <option value="mentor">Mentor</option>
-              <option value="student">Student</option>
-            </select>
-          </div>
-
-          <div>
-            <label className="field-label">Specific user</label>
+            <label className="field-label">Specific student</label>
             <select name="actor" defaultValue={searchParams.actor ?? ''} className="field">
               <option value="">Anyone</option>
-              <optgroup label="Mentors">
-                {actors
-                  ?.filter((a) => a.role === 'mentor')
-                  .map((a) => (
-                    <option key={a.id} value={a.id}>
-                      {a.full_name ?? a.email}
-                    </option>
-                  ))}
-              </optgroup>
-              <optgroup label="Students">
-                {actors
-                  ?.filter((a) => a.role === 'student')
-                  .map((a) => (
-                    <option key={a.id} value={a.id}>
-                      {a.full_name ?? a.email}
-                    </option>
-                  ))}
-              </optgroup>
+              {students?.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.full_name ?? s.email}
+                </option>
+              ))}
             </select>
           </div>
 
@@ -139,9 +178,9 @@ export default async function AuditLogsPage({
             </select>
           </div>
 
-          <div className="sm:col-span-3 flex gap-2 justify-end">
+          <div className="sm:col-span-2 flex gap-2 justify-end">
             {hasFilters && (
-              <Link href="/admin/logs" className="btn btn-ghost text-sm">
+              <Link href="/mentor/logs" className="btn btn-ghost text-sm">
                 <X size={12} /> Clear filters
               </Link>
             )}
@@ -159,28 +198,14 @@ export default async function AuditLogsPage({
             <span className="text-xs" style={{ color: 'var(--ink-500)' }}>
               Showing:
             </span>
-            {searchParams.role && (
-              <Link
-                href={buildUrl({ role: undefined })}
-                className="pill pill-accent"
-              >
-                Role: {searchParams.role} <X size={10} className="inline" />
-              </Link>
-            )}
             {currentActor && (
-              <Link
-                href={buildUrl({ actor: undefined })}
-                className="pill pill-accent"
-              >
+              <Link href={buildUrl({ actor: undefined })} className="pill pill-accent">
                 {currentActor.full_name ?? currentActor.email}{' '}
                 <X size={10} className="inline" />
               </Link>
             )}
             {searchParams.action && (
-              <Link
-                href={buildUrl({ action: undefined })}
-                className="pill pill-accent"
-              >
+              <Link href={buildUrl({ action: undefined })} className="pill pill-accent">
                 Action: {searchParams.action} <X size={10} className="inline" />
               </Link>
             )}
@@ -195,8 +220,7 @@ export default async function AuditLogsPage({
               <thead>
                 <tr>
                   <th>When</th>
-                  <th>Actor</th>
-                  <th>Role</th>
+                  <th>Student</th>
                   <th>Action</th>
                   <th>Entity</th>
                   <th>Details</th>
@@ -219,23 +243,6 @@ export default async function AuditLogsPage({
                       ) : (
                         '—'
                       )}
-                    </td>
-                    <td>
-                      <Link
-                        href={buildUrl({ role: l.actor_role, page: undefined })}
-                      >
-                        <Pill
-                          tone={
-                            l.actor_role === 'admin'
-                              ? 'accent'
-                              : l.actor_role === 'mentor'
-                                ? 'blue'
-                                : 'green'
-                          }
-                        >
-                          {l.actor_role ?? '—'}
-                        </Pill>
-                      </Link>
                     </td>
                     <td className="font-mono text-xs">
                       <Link
@@ -288,11 +295,11 @@ export default async function AuditLogsPage({
         </>
       ) : (
         <EmptyState
-          title={hasFilters ? 'No entries match your filters' : 'No audit entries'}
+          title={hasFilters ? 'No entries match your filters' : 'No student activity yet'}
           hint={
             hasFilters
-              ? 'Try clearing filters or removing the user filter.'
-              : undefined
+              ? 'Try clearing filters.'
+              : 'Activity appears here as students submit assignments, mark attendance, or respond to quizzes.'
           }
         />
       )}

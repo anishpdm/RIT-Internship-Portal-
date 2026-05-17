@@ -51,6 +51,7 @@ const NAV: Record<UserRole, NavItem[]> = {
     { href: '/mentor/sessions', label: 'Sessions', icon: Calendar },
     { href: '/mentor/assignments', label: 'Assignments', icon: ClipboardCheck },
     { href: '/mentor/evaluate', label: 'Evaluate', icon: FileCheck },
+    { href: '/mentor/logs', label: 'Activity', icon: ScrollText },
     { href: '/mentor/settings', label: 'Settings', icon: Settings },
   ],
   student: [

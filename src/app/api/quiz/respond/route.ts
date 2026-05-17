@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { logAudit } from '@/lib/audit';
 
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => ({}));
@@ -92,6 +93,15 @@ export async function POST(req: NextRequest) {
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
+
+  await logAudit({
+    actor_id: user.id,
+    actor_role: 'student',
+    action: 'quiz.respond',
+    entity_type: 'quiz_response',
+    entity_id: question_id,
+    details: { selected_option, is_correct, quiz_id: quiz.id },
+  });
 
   return NextResponse.json({ ok: true, is_correct });
 }

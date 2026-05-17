@@ -4,7 +4,7 @@ import { createClient } from '@/lib/supabase/server';
 import { requireRole } from '@/lib/auth';
 import { PageHeader, Pill } from '@/components/ui';
 import { formatDateTime } from '@/lib/utils';
-import { ArrowLeft, ExternalLink, FileText, Link as LinkIcon } from 'lucide-react';
+import { ArrowLeft, ExternalLink, FileText, Link as LinkIcon, Video } from 'lucide-react';
 import LiveAttendance from './LiveAttendance';
 import RecordedAttendance from './RecordedAttendance';
 import SelfLearningAttendance from './SelfLearningAttendance';
@@ -91,6 +91,36 @@ export default async function StudentSessionDetailPage({
           />
         )}
       </div>
+
+      {/* Standalone recording link — for live sessions that were recorded after the fact, or any session with a non-mp4 recording link */}
+      {session.recording_url && session.session_type !== 'recorded' && (
+        <div className="card mb-8" style={{ borderColor: 'var(--accent)' }}>
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <div className="flex items-center gap-3">
+              <div
+                className="w-10 h-10 rounded-lg flex items-center justify-center"
+                style={{ background: 'var(--accent-soft)', color: 'var(--accent)' }}
+              >
+                <Video size={18} />
+              </div>
+              <div>
+                <p className="font-display font-semibold">Session recording available</p>
+                <p className="text-xs" style={{ color: 'var(--ink-500)' }}>
+                  Watch the recording of this session.
+                </p>
+              </div>
+            </div>
+            <a
+              href={session.recording_url}
+              target="_blank"
+              rel="noreferrer"
+              className="btn btn-primary"
+            >
+              <Video size={14} /> Watch recording
+            </a>
+          </div>
+        </div>
+      )}
 
       {/* Materials */}
       <h2 className="font-display text-2xl mb-4">Materials</h2>

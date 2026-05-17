@@ -6,11 +6,56 @@ import { requireRole } from '@/lib/auth';
 import { logAudit } from '@/lib/audit';
 import { PageHeader, Pill, EmptyState } from '@/components/ui';
 import { formatDateTime } from '@/lib/utils';
-import { ArrowLeft, Trash2, FileText, Link as LinkIcon, Pencil } from 'lucide-react';
+import { ArrowLeft, Trash2, FileText, Link as LinkIcon, Pencil, Video } from 'lucide-react';
 import ConfirmDeleteButton from '@/components/ConfirmDeleteButton';
 import LiveCodePanel from '@/app/admin/sessions/[id]/LiveCodePanel';
 
 export const dynamic = 'force-dynamic';
+
+async function updateRecording(formData: FormData) {
+  'use server';
+  const me = await requireRole(['admin', 'mentor']);
+  const supabase = createClient();
+  const session_id = String(formData.get('session_id') ?? '');
+  const recording_url = String(formData.get('recording_url') ?? '').trim();
+
+  if (!session_id) return;
+
+  // Mentor scope check
+  if (me.profile.role === 'mentor') {
+    const { data: s } = await supabase
+      .from('sessions')
+      .select('internship_id')
+      .eq('id', session_id)
+      .single();
+    if (s) {
+      const { data: ma } = await supabase
+        .from('mentor_assignments')
+        .select('id')
+        .eq('mentor_id', me.userId)
+        .eq('internship_id', s.internship_id)
+        .maybeSingle();
+      if (!ma) return;
+    }
+  }
+
+  await supabase
+    .from('sessions')
+    .update({ recording_url: recording_url || null })
+    .eq('id', session_id);
+
+  await logAudit({
+    actor_id: me.userId,
+    actor_role: me.profile.role,
+    action: 'session.recording_update',
+    entity_type: 'session',
+    entity_id: session_id,
+    details: { has_recording: !!recording_url },
+  });
+
+  revalidatePath(`/mentor/sessions/${session_id}`);
+  revalidatePath(`/student/sessions/${session_id}`);
+}
 
 async function addMaterial(formData: FormData) {
   'use server';
@@ -181,6 +226,47 @@ export default async function MentorSessionDetailPage({
           <LiveCodePanel sessionId={session.id} />
         </div>
       )}
+
+      <div className="card mb-8">
+        <div className="flex items-center gap-2 mb-3">
+          <div
+            className="w-9 h-9 rounded-lg flex items-center justify-center"
+            style={{ background: 'var(--accent-soft)', color: 'var(--accent)' }}
+          >
+            <Video size={16} />
+          </div>
+          <div>
+            <p className="font-display font-semibold">Session recording</p>
+            <p className="text-xs" style={{ color: 'var(--ink-500)' }}>
+              Paste a Google Drive, YouTube, or other shareable link. Students will see this in their session view and Library.
+            </p>
+          </div>
+        </div>
+
+        {session.recording_url && (
+          <a
+            href={session.recording_url}
+            target="_blank"
+            rel="noreferrer"
+            className="text-sm link block mb-3 break-all"
+          >
+            Current: {session.recording_url}
+          </a>
+        )}
+
+        <form action={updateRecording} className="flex flex-col sm:flex-row gap-2">
+          <input type="hidden" name="session_id" value={session.id} />
+          <input
+            name="recording_url"
+            defaultValue={session.recording_url ?? ''}
+            placeholder="https://drive.google.com/file/d/.../view"
+            className="field flex-1"
+          />
+          <button type="submit" className="btn btn-primary">
+            Save recording link
+          </button>
+        </form>
+      </div>
 
       {session.description && (
         <div className="card mb-8">

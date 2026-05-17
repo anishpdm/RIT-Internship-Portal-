@@ -49,6 +49,8 @@ export default async function StudentLeaderboardPage() {
 
   // Get leaderboard rows for each internship
   const leaderboards: Record<string, LeaderRow[]> = {};
+  const quizAggregates: Record<string, Map<string, { score: number; correct: number; total: number }>> = {};
+
   for (const i of internships) {
     const { data: rows } = await supabase
       .from('v_internship_leaderboard')
@@ -56,6 +58,21 @@ export default async function StudentLeaderboardPage() {
       .eq('internship_id', i.id)
       .order('total_score', { ascending: false });
     leaderboards[i.id] = (rows ?? []) as LeaderRow[];
+
+    // Quiz aggregate per student in this internship
+    const { data: quizRows } = await supabase
+      .from('v_student_quiz_aggregate')
+      .select('student_id, quiz_score_pct, questions_answered, questions_correct')
+      .eq('internship_id', i.id);
+    const m = new Map<string, { score: number; correct: number; total: number }>();
+    for (const q of quizRows ?? []) {
+      m.set((q as any).student_id, {
+        score: Number((q as any).quiz_score_pct ?? 0),
+        correct: Number((q as any).questions_correct ?? 0),
+        total: Number((q as any).questions_answered ?? 0),
+      });
+    }
+    quizAggregates[i.id] = m;
   }
 
   // For each internship, find per-assignment top scorer
@@ -92,15 +109,35 @@ export default async function StudentLeaderboardPage() {
       <PageHeader
         eyebrow="Student"
         title="Leaderboard"
-        subtitle="Top performers and assignment toppers in your internships. Updates after each evaluation."
+        subtitle="Combined ranking: 90% from assignment scores + 10% from live quizzes. Updates after each evaluation."
       />
 
       <div className="space-y-10">
         {internships.map((i: any) => {
           const rows = leaderboards[i.id] ?? [];
-          const top10 = rows.slice(0, 10);
-          const myRank = rows.findIndex((r) => r.student_id === me.userId) + 1;
-          const myRow = rows.find((r) => r.student_id === me.userId);
+          const quizMap = quizAggregates[i.id] ?? new Map();
+
+          // Compute combined score: 90% assignments + 10% quiz
+          const rowsWithCombined = rows.map((r) => {
+            const quiz = quizMap.get(r.student_id);
+            const quizPct = quiz?.score ?? 0;
+            const assignmentPct = Number(r.total_score ?? 0);
+            const combined = assignmentPct * 0.9 + quizPct * 0.1;
+            return {
+              ...r,
+              quiz_score: quizPct,
+              quiz_correct: quiz?.correct ?? 0,
+              quiz_total: quiz?.total ?? 0,
+              combined,
+            };
+          });
+
+          // Re-sort by combined score
+          rowsWithCombined.sort((a, b) => b.combined - a.combined);
+
+          const top10 = rowsWithCombined.slice(0, 10);
+          const myRank = rowsWithCombined.findIndex((r) => r.student_id === me.userId) + 1;
+          const myRow = rowsWithCombined.find((r) => r.student_id === me.userId);
           const toppers = assignmentToppers[i.id] ?? [];
 
           return (
@@ -144,9 +181,12 @@ export default async function StudentLeaderboardPage() {
                     </div>
                     <div className="text-right">
                       <p className="stat-num" style={{ fontSize: '1.75rem' }}>
-                        {Number(myRow.total_score ?? 0).toFixed(1)}%
+                        {myRow.combined.toFixed(1)}%
                       </p>
-                      <p className="stat-label">your score</p>
+                      <p className="stat-label">combined score</p>
+                      <p className="text-xs mt-1 font-mono" style={{ color: 'var(--ink-500)' }}>
+                        Assignments {Number(myRow.total_score ?? 0).toFixed(0)}% · Quiz {myRow.quiz_score.toFixed(0)}%
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -165,9 +205,9 @@ export default async function StudentLeaderboardPage() {
                         <th style={{ width: 60 }}>Rank</th>
                         <th>Student</th>
                         <th>Level</th>
-                        <th>Score</th>
-                        <th>Graded</th>
-                        <th>Attended</th>
+                        <th>Assignments</th>
+                        <th>Quiz</th>
+                        <th>Combined</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -221,15 +261,22 @@ export default async function StudentLeaderboardPage() {
                               L{r.current_level}
                             </td>
                             <td>
-                              <span className="font-mono font-semibold">
+                              <span className="font-mono">
                                 {Number(r.total_score ?? 0).toFixed(1)}%
                               </span>
                             </td>
-                            <td className="font-mono text-sm">
-                              {r.graded_submissions}
+                            <td>
+                              <span className="font-mono">
+                                {r.quiz_score.toFixed(0)}%
+                              </span>
+                              {r.quiz_total > 0 && (
+                                <span className="text-xs ml-1" style={{ color: 'var(--ink-500)' }}>
+                                  ({r.quiz_correct}/{r.quiz_total})
+                                </span>
+                              )}
                             </td>
-                            <td className="font-mono text-sm">
-                              {r.attended_sessions}
+                            <td className="font-mono font-semibold">
+                              {r.combined.toFixed(1)}%
                             </td>
                           </tr>
                         );

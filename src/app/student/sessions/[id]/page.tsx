@@ -4,7 +4,7 @@ import { createClient } from '@/lib/supabase/server';
 import { requireRole } from '@/lib/auth';
 import { PageHeader, Pill } from '@/components/ui';
 import { formatDateTime } from '@/lib/utils';
-import { ArrowLeft, ExternalLink, FileText, Link as LinkIcon, Video } from 'lucide-react';
+import { ArrowLeft, ExternalLink, FileText, Link as LinkIcon, Video, Zap } from 'lucide-react';
 import LiveAttendance from './LiveAttendance';
 import RecordedAttendance from './RecordedAttendance';
 import SelfLearningAttendance from './SelfLearningAttendance';
@@ -42,6 +42,13 @@ export default async function StudentSessionDetailPage({
     .eq('student_id', me.userId)
     .maybeSingle();
 
+  // Is there a quiz for this session?
+  const { data: quiz } = await supabase
+    .from('quizzes')
+    .select('id, status, title')
+    .eq('session_id', params.id)
+    .maybeSingle();
+
   return (
     <>
       <PageHeader
@@ -59,6 +66,42 @@ export default async function StudentSessionDetailPage({
         <div className="card mb-6">
           <p className="leading-relaxed">{session.description}</p>
         </div>
+      )}
+
+      {/* Quiz CTA */}
+      {quiz && quiz.status !== 'ended' && (
+        <Link
+          href={`/student/sessions/${params.id}/quiz`}
+          className="card card-hover block mb-6"
+          style={{
+            background: quiz.status === 'active' || quiz.status === 'reveal'
+              ? 'linear-gradient(135deg, var(--accent-soft) 0%, rgba(79, 70, 229, 0.05) 100%)'
+              : 'var(--paper)',
+            borderColor: 'var(--accent)',
+          }}
+        >
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <div className="flex items-center gap-3">
+              <div
+                className="w-10 h-10 rounded-lg flex items-center justify-center"
+                style={{ background: 'var(--accent)', color: 'white' }}
+              >
+                <Zap size={18} />
+              </div>
+              <div>
+                <p className="font-display font-semibold">{quiz.title}</p>
+                <p className="text-xs" style={{ color: 'var(--ink-500)' }}>
+                  {quiz.status === 'active' || quiz.status === 'reveal'
+                    ? '🟢 Live now — join in'
+                    : 'Waiting to start'}
+                </p>
+              </div>
+            </div>
+            <span className="btn btn-primary">
+              <Zap size={14} /> Join quiz
+            </span>
+          </div>
+        </Link>
       )}
 
       {/* Attendance UI by type */}

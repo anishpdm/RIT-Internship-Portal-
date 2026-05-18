@@ -60,7 +60,7 @@ export default function AttendanceRowActions({
         return;
       }
 
-      // Optimistically update the visible state
+      // Optimistically update the visible state for instant feedback
       if (action === 'clear') {
         setDisplayedStatus(null);
       } else {
@@ -69,11 +69,12 @@ export default function AttendanceRowActions({
       setJustSaved(true);
       setBusy(null);
 
-      // Also refresh server data in the background so "How marked" column updates
-      router.refresh();
-
-      // Fade the "saved" indicator after 2s
-      setTimeout(() => setJustSaved(false), 2000);
+      // Hard reload after 700ms — this guarantees the whole row (status pill,
+      // "How marked" column, stat counts) reflects the database, not just the
+      // button. router.refresh() has been unreliable for some users.
+      setTimeout(() => {
+        window.location.reload();
+      }, 700);
     } catch (e: any) {
       clearTimeout(timeoutId);
       if (e?.name === 'AbortError') {

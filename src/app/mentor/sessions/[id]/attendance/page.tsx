@@ -1,10 +1,10 @@
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
-import { createClient } from '@/lib/supabase/server';
+import { createClient, createAdminClient } from '@/lib/supabase/server';
 import { requireRole } from '@/lib/auth';
 import { PageHeader, Pill, EmptyState } from '@/components/ui';
 import { formatDateTime } from '@/lib/utils';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, AlertTriangle } from 'lucide-react';
 import AttendanceRowActions from '@/components/AttendanceRowActions';
 import BulkMarkAllPresent from '@/components/BulkMarkAllPresent';
 
@@ -39,26 +39,44 @@ export default async function AttendanceMarkingPage({
 
   const basePath = me.profile.role === 'admin' ? 'admin' : 'mentor';
 
-  const [enrollmentsRes, attendanceRes] = await Promise.all([
-    supabase
-      .from('enrollments')
-      .select('student_id, current_level, profiles:student_id (full_name, email)')
-      .eq('internship_id', session.internship_id),
-    supabase
-      .from('attendance')
-      .select(
-        'student_id, status, code_entered_at, joined_at, marked_manually_by, marked_manually_at, markers:marked_manually_by (full_name, email)',
-      )
-      .eq('session_id', session.id),
-  ]);
+  // Use admin client for reliable reads — bypasses any RLS hiccups
+  const admin = createAdminClient();
 
-  // Sort alphabetically by name (fall back to email)
+  // Enrollments
+  const enrollmentsRes = await admin
+    .from('enrollments')
+    .select('student_id, current_level, profiles:student_id (full_name, email)')
+    .eq('internship_id', session.internship_id);
+
+  // Attendance — try full query first, fall back if migration 007 not run
+  let attendance: any[] = [];
+  let schemaHasManualColumns = true;
+
+  const fullAttRes = await admin
+    .from('attendance')
+    .select(
+      'student_id, status, code_entered_at, joined_at, marked_manually_by, marked_manually_at, markers:marked_manually_by (full_name, email)',
+    )
+    .eq('session_id', session.id);
+
+  if (fullAttRes.error) {
+    // Migration 007 likely not run — fall back to basic select
+    schemaHasManualColumns = false;
+    const basicRes = await admin
+      .from('attendance')
+      .select('student_id, status, code_entered_at, joined_at')
+      .eq('session_id', session.id);
+    attendance = basicRes.data ?? [];
+  } else {
+    attendance = fullAttRes.data ?? [];
+  }
+
+  // Sort alphabetically
   const enrollments = (enrollmentsRes.data ?? []).slice().sort((a: any, b: any) => {
     const an = (a.profiles?.full_name ?? a.profiles?.email ?? '').toLowerCase();
     const bn = (b.profiles?.full_name ?? b.profiles?.email ?? '').toLowerCase();
     return an.localeCompare(bn);
   });
-  const attendance = attendanceRes.data ?? [];
 
   const attMap = new Map<string, any>();
   for (const a of attendance) attMap.set((a as any).student_id, a);
@@ -88,6 +106,32 @@ export default async function AttendanceMarkingPage({
           </Link>
         }
       />
+
+      {!schemaHasManualColumns && (
+        <div
+          className="card mb-6 flex items-start gap-3"
+          style={{
+            background: 'rgba(234, 179, 8, 0.12)',
+            borderColor: '#eab308',
+            color: '#854d0e',
+          }}
+        >
+          <AlertTriangle size={18} className="mt-0.5 shrink-0" />
+          <div>
+            <p className="font-display font-semibold mb-1">
+              Manual-marking history not enabled
+            </p>
+            <p className="text-sm">
+              Attendance marking works, but the &quot;How marked&quot; column won&apos;t
+              show your name or timestamp until you run{' '}
+              <code className="font-mono text-xs px-1 rounded" style={{ background: 'rgba(0,0,0,0.06)' }}>
+                supabase/migrations/007_manual_attendance.sql
+              </code>{' '}
+              in your Supabase SQL Editor. The status itself saves fine.
+            </p>
+          </div>
+        </div>
+      )}
 
       <div className="grid sm:grid-cols-4 gap-4 mb-6">
         <div className="card">
@@ -166,6 +210,8 @@ export default async function AttendanceMarkingPage({
                         <>Self via code<br />{formatDateTime(a.code_entered_at)}</>
                       ) : a.joined_at ? (
                         <>Self<br />{formatDateTime(a.joined_at)}</>
+                      ) : status ? (
+                        <em>Set without metadata</em>
                       ) : (
                         '—'
                       )}

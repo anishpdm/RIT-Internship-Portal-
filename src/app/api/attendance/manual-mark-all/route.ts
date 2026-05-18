@@ -73,22 +73,40 @@ export async function POST(req: NextRequest) {
   }
 
   const now = new Date().toISOString();
-  const rows = studentIds.map((sid) => ({
-    session_id,
-    student_id: sid,
-    status: 'present' as const,
-    marked_manually_by: user.id,
-    marked_manually_at: now,
-  }));
-
   const admin = createAdminClient();
+
+  // Probe whether manual-marking columns exist
+  const { error: probeErr } = await admin
+    .from('attendance')
+    .select('marked_manually_by')
+    .limit(1);
+  const hasManualColumns = !probeErr;
+
+  const baseRow = (sid: string): Record<string, any> => {
+    const r: Record<string, any> = {
+      session_id,
+      student_id: sid,
+      status: 'present',
+    };
+    if (hasManualColumns) {
+      r.marked_manually_by = user.id;
+      r.marked_manually_at = now;
+    }
+    return r;
+  };
+  const rows = studentIds.map(baseRow);
+
+  // Use upsert here since we're guaranteed unique pairs in our payload
   const { data: written, error } = await admin
     .from('attendance')
     .upsert(rows, { onConflict: 'session_id,student_id' })
     .select();
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json(
+      { error: `Bulk write failed: ${error.message}` },
+      { status: 500 },
+    );
   }
   const writtenCount = written?.length ?? 0;
 

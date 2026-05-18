@@ -3,12 +3,11 @@ import { createClient, createAdminClient } from '@/lib/supabase/server';
 import { logAudit } from '@/lib/audit';
 
 export async function POST(req: NextRequest) {
-  // Sanity check: service role key must be configured for this endpoint
   if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
     return NextResponse.json(
       {
         error:
-          'Server misconfigured: SUPABASE_SERVICE_ROLE_KEY is missing. Add it in Vercel → Project Settings → Environment Variables and redeploy.',
+          'Server misconfigured: SUPABASE_SERVICE_ROLE_KEY is missing on Vercel.',
       },
       { status: 500 },
     );
@@ -29,7 +28,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid status' }, { status: 400 });
   }
 
-  // ───── Auth + permission check using user JWT ─────
   const supabase = createClient();
   const {
     data: { user },
@@ -46,7 +44,7 @@ export async function POST(req: NextRequest) {
   const role = profile?.role;
   if (role !== 'admin' && role !== 'mentor') {
     return NextResponse.json(
-      { error: 'Only admins and mentors can mark attendance manually' },
+      { error: 'Only admins and mentors can mark attendance' },
       { status: 403 },
     );
   }
@@ -75,30 +73,34 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // ───── Service role check ─────
-  // If this is missing on Vercel, every write below will silently fail via RLS.
-  if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
+  const admin = createAdminClient();
+
+  // ─────── Probe: does migration 007 exist? ───────
+  const { error: probeErr } = await admin
+    .from('attendance')
+    .select('marked_manually_by')
+    .limit(1);
+
+  const hasManualColumns = !probeErr;
+
+  if (probeErr && !probeErr.message?.match(/column .* does not exist/i)) {
+    // Some other error reading attendance
     return NextResponse.json(
-      {
-        error:
-          'Server is missing SUPABASE_SERVICE_ROLE_KEY. Set it in Vercel Project → Settings → Environment Variables, then redeploy.',
-      },
+      { error: `Attendance read failed: ${probeErr.message}` },
       { status: 500 },
     );
   }
 
-  const admin = createAdminClient();
-
-  // ───── Clear path ─────
+  // ─────── CLEAR ───────
   if (status === 'clear') {
-    const { error: delErr } = await admin
+    const { error: delErr, count } = await admin
       .from('attendance')
-      .delete()
+      .delete({ count: 'exact' })
       .eq('session_id', session_id)
       .eq('student_id', student_id);
     if (delErr) {
       return NextResponse.json(
-        { error: `Delete failed: ${delErr.message}`, code: delErr.code },
+        { error: `Delete failed: ${delErr.message}` },
         { status: 500 },
       );
     }
@@ -110,97 +112,70 @@ export async function POST(req: NextRequest) {
       entity_id: `${session_id}:${student_id}`,
       details: { session_id, student_id },
     });
-    return NextResponse.json({ ok: true, cleared: true });
+    return NextResponse.json({ ok: true, cleared: true, deletedCount: count });
   }
 
-  // ───── Find-then-INSERT-or-UPDATE (more debuggable than upsert) ─────
-  const { data: existing, error: findErr } = await admin
-    .from('attendance')
-    .select('id')
-    .eq('session_id', session_id)
-    .eq('student_id', student_id)
-    .maybeSingle();
-
-  if (findErr) {
-    return NextResponse.json(
-      { error: `Lookup failed: ${findErr.message}`, code: findErr.code },
-      { status: 500 },
-    );
-  }
-
-  const writePayload = {
+  // ─────── INSERT or UPDATE ───────
+  const fullRow: Record<string, any> = {
     session_id,
     student_id,
     status,
-    marked_manually_by: user.id,
-    marked_manually_at: new Date().toISOString(),
   };
-
-  if (existing) {
-    // Update existing row
-    const { error: updErr } = await admin
-      .from('attendance')
-      .update(writePayload)
-      .eq('id', existing.id);
-    if (updErr) {
-      return NextResponse.json(
-        {
-          error: `Update failed: ${updErr.message}`,
-          code: updErr.code,
-          hint: updErr.code === '42703'
-            ? 'Migration 007 not run? Missing column marked_manually_by or marked_manually_at on attendance table.'
-            : undefined,
-        },
-        { status: 500 },
-      );
-    }
-  } else {
-    // Insert new row
-    const { error: insErr } = await admin
-      .from('attendance')
-      .insert(writePayload);
-    if (insErr) {
-      return NextResponse.json(
-        {
-          error: `Insert failed: ${insErr.message}`,
-          code: insErr.code,
-          hint: insErr.code === '42703'
-            ? 'Migration 007 not run? Missing column marked_manually_by or marked_manually_at on attendance table.'
-            : undefined,
-        },
-        { status: 500 },
-      );
-    }
+  if (hasManualColumns) {
+    fullRow.marked_manually_by = user.id;
+    fullRow.marked_manually_at = new Date().toISOString();
   }
 
-  // ───── Verify by reading back ─────
-  const { data: verified, error: verifyErr } = await admin
+  // Try to UPDATE existing row first
+  const updateRes = await admin
     .from('attendance')
-    .select('id, status, marked_manually_by, marked_manually_at')
+    .update(fullRow)
     .eq('session_id', session_id)
     .eq('student_id', student_id)
+    .select()
     .maybeSingle();
 
-  if (verifyErr) {
+  if (updateRes.error) {
     return NextResponse.json(
-      { error: `Verify read failed: ${verifyErr.message}` },
+      { error: `Update failed: ${updateRes.error.message}` },
       { status: 500 },
     );
   }
-  if (!verified) {
+
+  // If UPDATE returned a row, we're done
+  if (updateRes.data) {
+    await logAudit({
+      actor_id: user.id,
+      actor_role: role,
+      action: 'attendance.mark_manual',
+      entity_type: 'attendance',
+      entity_id: `${session_id}:${student_id}`,
+      details: { status, session_id, student_id, op: 'update' },
+    });
+    return NextResponse.json({
+      ok: true,
+      op: 'update',
+      row: updateRes.data,
+      schemaHasManualColumns: hasManualColumns,
+    });
+  }
+
+  // No existing row — INSERT
+  const insertRes = await admin
+    .from('attendance')
+    .insert(fullRow)
+    .select()
+    .single();
+
+  if (insertRes.error) {
     return NextResponse.json(
-      {
-        error:
-          'Write reported success but verification read found no row. Service role may be misconfigured.',
-      },
+      { error: `Insert failed: ${insertRes.error.message}` },
       { status: 500 },
     );
   }
-  if (verified.status !== status) {
+  if (!insertRes.data) {
     return NextResponse.json(
-      {
-        error: `Wrote status="${status}" but verification reads status="${verified.status}". This should not happen.`,
-      },
+      { error: 'Insert returned no row' },
       { status: 500 },
     );
   }
@@ -211,8 +186,13 @@ export async function POST(req: NextRequest) {
     action: 'attendance.mark_manual',
     entity_type: 'attendance',
     entity_id: `${session_id}:${student_id}`,
-    details: { status, session_id, student_id },
+    details: { status, session_id, student_id, op: 'insert' },
   });
 
-  return NextResponse.json({ ok: true, verified });
+  return NextResponse.json({
+    ok: true,
+    op: 'insert',
+    row: insertRes.data,
+    schemaHasManualColumns: hasManualColumns,
+  });
 }

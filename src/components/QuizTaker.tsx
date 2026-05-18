@@ -10,6 +10,8 @@ import {
   Sparkles,
   Trophy,
   AlertCircle,
+  Send,
+  RefreshCw,
 } from 'lucide-react';
 
 interface State {
@@ -46,7 +48,10 @@ export default function QuizTaker({
   backHref: string;
 }) {
   const [state, setState] = useState<State | null>(null);
+  // The option the student has TAPPED but not yet submitted
   const [selected, setSelected] = useState<number | null>(null);
+  // Whether the confirm overlay is showing
+  const [confirming, setConfirming] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [score, setScore] = useState<{ correct: number; total: number } | null>(null);
@@ -61,11 +66,12 @@ export default function QuizTaker({
       const data = await res.json();
       setState(data);
 
-      // Reset selection when question changes
+      // Reset everything when the question changes
       const qid = data.question?.id ?? null;
       if (qid !== lastQuestionIdRef.current) {
         lastQuestionIdRef.current = qid;
         setSelected(null);
+        setConfirming(false);
         setErr(null);
       }
     } catch {}
@@ -103,22 +109,28 @@ export default function QuizTaker({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state?.quiz?.status, state?.quiz?.id]);
 
-  // Pick an option (no API call — just visual selection)
-  function pickOption(optionIdx: number) {
-    if (state?.myResponse) return; // locked
+  // STEP 1: Tap an option (just visual — no API call)
+  function pickOption(idx: number) {
+    if (state?.myResponse) return;
     if (submitting) return;
-    setSelected(optionIdx);
+    if (confirming) return;
+    setSelected(idx);
     setErr(null);
   }
 
-  // Send the picked option to the server
-  async function submitAnswer() {
-    if (!state?.question) return;
-    if (state.myResponse) return;
+  // STEP 2: Tap "Submit answer" → open confirm overlay
+  function openConfirm() {
     if (selected === null) {
-      setErr('Pick an option first.');
+      setErr('Tap one of the options first.');
       return;
     }
+    setConfirming(true);
+    setErr(null);
+  }
+
+  // STEP 3: Tap "Yes, submit" in overlay → actually POST
+  async function confirmSubmit() {
+    if (!state?.question || selected === null) return;
     setSubmitting(true);
     setErr(null);
     try {
@@ -134,6 +146,7 @@ export default function QuizTaker({
       if (!res.ok) {
         setErr(data.error ?? 'Failed to submit');
       }
+      setConfirming(false);
       await fetchState();
     } catch {
       setErr('Network error — try again.');
@@ -142,7 +155,16 @@ export default function QuizTaker({
     }
   }
 
-  // No quiz exists yet
+  function cancelConfirm() {
+    setConfirming(false);
+    setErr(null);
+  }
+
+  function clearSelection() {
+    setSelected(null);
+    setErr(null);
+  }
+
   if (!state || !state.quiz) {
     return (
       <div className="empty">
@@ -156,7 +178,7 @@ export default function QuizTaker({
 
   const { quiz, question, myResponse } = state;
 
-  // Waiting / draft
+  // ─────────── DRAFT (waiting) ───────────
   if (quiz.status === 'draft') {
     return (
       <div className="space-y-4">
@@ -170,10 +192,7 @@ export default function QuizTaker({
             background: `radial-gradient(60% 50% at 50% 0%, rgba(79, 70, 229, 0.08), transparent 70%), var(--paper)`,
           }}
         >
-          <Sparkles
-            size={32}
-            style={{ color: 'var(--accent)', margin: '0 auto 1rem' }}
-          />
+          <Sparkles size={32} style={{ color: 'var(--accent)', margin: '0 auto 1rem' }} />
           <p className="font-display text-2xl font-bold">{quiz.title}</p>
           <p className="text-sm mt-2" style={{ color: 'var(--ink-500)' }}>
             Waiting for your mentor to start the quiz…
@@ -182,8 +201,10 @@ export default function QuizTaker({
             className="inline-block mt-4 px-3 py-1 rounded-full text-xs"
             style={{ background: 'var(--accent-soft)', color: 'var(--accent)' }}
           >
-            <span className="inline-block w-1.5 h-1.5 rounded-full mr-2 animate-pulse"
-              style={{background:'var(--accent)'}} />
+            <span
+              className="inline-block w-1.5 h-1.5 rounded-full mr-2 animate-pulse"
+              style={{ background: 'var(--accent)' }}
+            />
             Stand by
           </div>
         </div>
@@ -191,11 +212,12 @@ export default function QuizTaker({
     );
   }
 
-  // Ended view
+  // ─────────── ENDED ───────────
   if (quiz.status === 'ended') {
-    const pct = score && score.total > 0
-      ? ((score.correct / score.total) * 100).toFixed(0)
-      : null;
+    const pct =
+      score && score.total > 0
+        ? ((score.correct / score.total) * 100).toFixed(0)
+        : null;
     return (
       <div className="space-y-4">
         <Link href={backHref} className="link text-sm">
@@ -210,14 +232,14 @@ export default function QuizTaker({
             borderColor: 'var(--accent)',
           }}
         >
-          <Trophy
-            size={40}
-            style={{ color: 'var(--accent)', margin: '0 auto 1rem' }}
-          />
+          <Trophy size={40} style={{ color: 'var(--accent)', margin: '0 auto 1rem' }} />
           <p className="font-display text-3xl font-bold">Quiz complete</p>
           {score && (
             <>
-              <p className="font-display text-5xl font-bold mt-4" style={{ color: 'var(--accent)' }}>
+              <p
+                className="font-display text-5xl font-bold mt-4"
+                style={{ color: 'var(--accent)' }}
+              >
                 {score.correct} / {score.total}
               </p>
               {pct && (
@@ -233,11 +255,7 @@ export default function QuizTaker({
   }
 
   if (!question) {
-    return (
-      <div className="empty">
-        <p>The quiz is starting…</p>
-      </div>
-    );
+    return <div className="empty"><p>The quiz is starting…</p></div>;
   }
 
   const reveal = quiz.reveal_answer;
@@ -254,8 +272,8 @@ export default function QuizTaker({
         <div className="text-xs" style={{ color: 'var(--ink-500)' }}>
           <span className="font-mono font-semibold" style={{ color: 'var(--accent)' }}>
             Q{quiz.current_question_index + 1}
-          </span>
-          {' '}of {quiz.total_questions} · {internshipTitle}
+          </span>{' '}
+          of {quiz.total_questions} · {internshipTitle}
         </div>
       </div>
 
@@ -273,7 +291,7 @@ export default function QuizTaker({
         />
       </div>
 
-      {/* Question card with animation key for re-mount on change */}
+      {/* Question card */}
       <div
         key={question.id}
         className="card card-elevated quiz-fade-in"
@@ -295,7 +313,7 @@ export default function QuizTaker({
           const pickedThis = !myResponse && selected === i;
           const isCorrect = reveal && correctOpt === i;
           const isWrongMine = reveal && submittedThis && correctOpt !== i;
-          const disabled = !!myResponse || submitting;
+          const disabled = !!myResponse || submitting || confirming;
 
           let bg = 'var(--paper)';
           let border = 'var(--ink-200)';
@@ -310,12 +328,10 @@ export default function QuizTaker({
             border = 'var(--red-500)';
             color = 'var(--red-700)';
           } else if (submittedThis) {
-            // Locked-in answer (waiting for reveal)
             bg = 'var(--accent-soft)';
             border = 'var(--accent)';
             color = 'var(--accent)';
           } else if (pickedThis) {
-            // Currently picked but not yet submitted — solid accent fill
             bg = 'var(--accent)';
             border = 'var(--accent)';
             color = 'white';
@@ -330,7 +346,7 @@ export default function QuizTaker({
               className="quiz-option"
               style={{
                 background: bg,
-                border: `1.5px solid ${border}`,
+                border: `2px solid ${border}`,
                 color,
                 width: '100%',
                 textAlign: 'left',
@@ -365,86 +381,23 @@ export default function QuizTaker({
               >
                 {String.fromCharCode(65 + i)}
               </span>
-              <span
-                className="font-medium text-base flex-1"
-                style={{ color: 'inherit' }}
-              >
+              <span className="font-medium text-base flex-1" style={{ color: 'inherit' }}>
                 {opt}
               </span>
               {isCorrect && <CheckCircle2 size={20} />}
               {isWrongMine && <XCircle size={20} />}
+              {pickedThis && (
+                <span
+                  className="text-xs font-semibold uppercase"
+                  style={{ letterSpacing: '0.05em' }}
+                >
+                  Picked
+                </span>
+              )}
             </button>
           );
         })}
       </div>
-
-      {/* Submit Answer button — visible until the answer is locked in */}
-      {!myResponse && !reveal && (
-        <div
-          className="card"
-          style={{ position: 'sticky', bottom: 12, padding: '0.85rem 1rem' }}
-        >
-          <div className="flex items-center justify-between gap-3 flex-wrap">
-            <p
-              className="text-sm"
-              style={{ color: 'var(--ink-500)' }}
-            >
-              {selected === null ? (
-                <>👆 Pick an option above</>
-              ) : (
-                <>
-                  Selected:{' '}
-                  <span
-                    className="font-mono font-semibold"
-                    style={{ color: 'var(--accent)' }}
-                  >
-                    {String.fromCharCode(65 + selected)}
-                  </span>{' '}
-                  — change it any time before submitting.
-                </>
-              )}
-            </p>
-            <button
-              type="button"
-              onClick={submitAnswer}
-              disabled={selected === null || submitting}
-              className="btn btn-primary"
-              style={{
-                opacity: selected === null || submitting ? 0.5 : 1,
-              }}
-            >
-              {submitting ? 'Submitting…' : 'Submit answer'}
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Footer state */}
-      {myResponse && !reveal && (
-        <div
-          className="text-center text-sm flex items-center justify-center gap-2"
-          style={{ color: 'var(--accent)' }}
-        >
-          <Clock size={14} /> Answer submitted. Waiting for the mentor to reveal the answer…
-        </div>
-      )}
-      {reveal && myResponse && (
-        <div
-          className={`text-center font-display text-lg font-bold ${myResponse.is_correct ? '' : ''}`}
-          style={{
-            color: myResponse.is_correct
-              ? 'var(--green-700)'
-              : 'var(--red-700)',
-          }}
-        >
-          {myResponse.is_correct ? '✓ Correct!' : '✗ Not quite'}
-        </div>
-      )}
-      {reveal && !myResponse && (
-        <p className="text-center text-sm" style={{ color: 'var(--ink-500)' }}>
-          You didn&apos;t answer this one.
-        </p>
-      )}
 
       {err && (
         <div
@@ -453,6 +406,161 @@ export default function QuizTaker({
         >
           <AlertCircle size={14} className="mt-0.5 shrink-0" />
           <span>{err}</span>
+        </div>
+      )}
+
+      {/* Big, obvious Submit panel — only when not yet submitted and not in reveal */}
+      {!myResponse && !reveal && (
+        <div
+          className="card"
+          style={{
+            padding: '1.25rem',
+            background:
+              selected !== null
+                ? 'linear-gradient(135deg, var(--accent-soft) 0%, rgba(79, 70, 229, 0.04) 100%)'
+                : 'var(--paper)',
+            borderColor: selected !== null ? 'var(--accent)' : 'var(--ink-200)',
+            borderWidth: 2,
+          }}
+        >
+          {selected === null ? (
+            <div className="text-center">
+              <p
+                className="font-display font-semibold text-lg mb-1"
+                style={{ color: 'var(--ink-700)' }}
+              >
+                Tap one of the options above
+              </p>
+              <p className="text-sm" style={{ color: 'var(--ink-500)' }}>
+                You can change your pick before submitting.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <p
+                className="text-center text-sm"
+                style={{ color: 'var(--ink-700)' }}
+              >
+                You picked{' '}
+                <span
+                  className="font-mono font-bold text-base"
+                  style={{ color: 'var(--accent)' }}
+                >
+                  {String.fromCharCode(65 + selected)}
+                </span>{' '}
+                — tap{' '}
+                <strong style={{ color: 'var(--accent)' }}>Submit answer</strong>{' '}
+                to lock it in.
+              </p>
+              <div className="flex gap-2 justify-center flex-wrap">
+                <button
+                  type="button"
+                  onClick={clearSelection}
+                  disabled={submitting}
+                  className="btn btn-ghost"
+                >
+                  <RefreshCw size={14} /> Clear
+                </button>
+                <button
+                  type="button"
+                  onClick={openConfirm}
+                  disabled={submitting}
+                  className="btn btn-primary"
+                  style={{ fontSize: '1rem', padding: '0.65rem 1.5rem' }}
+                >
+                  <Send size={16} /> Submit answer
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Footer state when locked in */}
+      {myResponse && !reveal && (
+        <div
+          className="card text-center"
+          style={{
+            background: 'var(--accent-soft)',
+            borderColor: 'var(--accent)',
+            color: 'var(--accent)',
+          }}
+        >
+          <Clock size={18} className="inline mr-2" />
+          <span className="font-medium">
+            Answer submitted — waiting for the mentor to reveal the answer…
+          </span>
+        </div>
+      )}
+
+      {reveal && myResponse && (
+        <div
+          className="font-display text-lg font-bold text-center card"
+          style={{
+            background: myResponse.is_correct ? 'var(--green-soft)' : 'var(--red-soft)',
+            borderColor: myResponse.is_correct ? 'var(--green-500)' : 'var(--red-500)',
+            color: myResponse.is_correct ? 'var(--green-700)' : 'var(--red-700)',
+          }}
+        >
+          {myResponse.is_correct ? '✓ Correct!' : '✗ Not quite'}
+        </div>
+      )}
+
+      {reveal && !myResponse && (
+        <p className="text-center text-sm" style={{ color: 'var(--ink-500)' }}>
+          You didn&apos;t answer this one.
+        </p>
+      )}
+
+      {/* CONFIRM OVERLAY — must explicitly confirm before submission goes through */}
+      {confirming && selected !== null && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center px-4"
+          style={{ background: 'rgba(15, 23, 42, 0.6)' }}
+        >
+          <div className="card max-w-md w-full" style={{ boxShadow: 'var(--shadow-lg)' }}>
+            <div className="flex items-center gap-3 mb-4">
+              <div
+                className="w-12 h-12 rounded-full flex items-center justify-center shrink-0"
+                style={{ background: 'var(--accent)', color: 'white' }}
+              >
+                <span className="font-mono font-bold text-xl">
+                  {String.fromCharCode(65 + selected)}
+                </span>
+              </div>
+              <div>
+                <p className="font-display font-bold text-lg">Submit this answer?</p>
+                <p className="text-xs" style={{ color: 'var(--ink-500)' }}>
+                  Once submitted, you cannot change it for this question.
+                </p>
+              </div>
+            </div>
+            <p
+              className="text-sm p-3 rounded-md mb-4"
+              style={{ background: 'var(--accent-soft)', color: 'var(--ink-900)' }}
+            >
+              <span className="eyebrow block mb-1">Your answer</span>
+              <strong>{question.options[selected]}</strong>
+            </p>
+            <div className="flex gap-2 justify-end">
+              <button
+                type="button"
+                onClick={cancelConfirm}
+                disabled={submitting}
+                className="btn btn-secondary"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={confirmSubmit}
+                disabled={submitting}
+                className="btn btn-primary"
+              >
+                <Send size={14} /> {submitting ? 'Submitting…' : 'Yes, submit'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

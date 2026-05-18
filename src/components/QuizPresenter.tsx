@@ -78,7 +78,7 @@ export default function QuizPresenter({
       pollTimerRef.current = setTimeout(async () => {
         await fetchState();
         loop();
-      }, 1500);
+      }, 2000);
     };
     loop();
     return () => {

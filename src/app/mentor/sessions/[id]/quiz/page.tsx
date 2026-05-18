@@ -26,7 +26,7 @@ export default async function AdminQuizPage({
   // Get or create the quiz for this session
   let { data: quiz } = await supabase
     .from('quizzes')
-    .select('id, title, status')
+    .select('id, title, status, mode, starts_at, ends_at')
     .eq('session_id', session.id)
     .maybeSingle();
 
@@ -37,8 +37,9 @@ export default async function AdminQuizPage({
         session_id: session.id,
         title: `Quiz · ${session.title}`,
         status: 'draft',
+        mode: 'self_paced',
       })
-      .select('id, title, status')
+      .select('id, title, status, mode, starts_at, ends_at')
       .single();
     quiz = created;
   }
@@ -57,24 +58,30 @@ export default async function AdminQuizPage({
     .eq('quiz_id', quiz.id)
     .order('order_index');
 
-  const isActive = quiz.status === 'active' || quiz.status === 'reveal';
+  // Window state
+  const now = Date.now();
+  const startMs = quiz.starts_at ? new Date(quiz.starts_at).getTime() : null;
+  const endMs = quiz.ends_at ? new Date(quiz.ends_at).getTime() : null;
+  const scheduled = !!(startMs && endMs);
+  const isOpen = scheduled && now >= (startMs as number) && now <= (endMs as number);
+  const isClosed = scheduled && now > (endMs as number);
 
   return (
     <>
       <PageHeader
         eyebrow={`Quiz · ${session.title}`}
         title={quiz.title}
-        subtitle="Build multiple-choice questions, then start a live quiz that all enrolled students can join."
+        subtitle="Build multiple-choice questions, then schedule a window when students can take the quiz at their own pace."
         actions={
           <>
-            {isActive ? (
+            {scheduled && (
               <Link
                 href={`/mentor/sessions/${session.id}/quiz/run`}
                 className="btn btn-accent"
               >
-                <Play size={14} /> Open live panel
+                <Play size={14} /> Open monitor
               </Link>
-            ) : null}
+            )}
             <Link
               href={`/mentor/sessions/${session.id}`}
               className="btn btn-ghost"
@@ -88,38 +95,26 @@ export default async function AdminQuizPage({
       <div className="mb-4">
         <Pill
           tone={
-            quiz.status === 'active'
-              ? 'accent'
-              : quiz.status === 'ended'
-                ? 'green'
-                : undefined
+            isOpen ? 'accent' : isClosed ? 'green' : scheduled ? 'amber' : undefined
           }
         >
-          Status: {quiz.status}
+          {isOpen
+            ? 'Open now'
+            : isClosed
+              ? 'Closed'
+              : scheduled
+                ? 'Scheduled'
+                : 'Draft'}
         </Pill>
       </div>
 
-      {isActive ? (
-        <div
-          className="card mb-6"
-          style={{ borderColor: 'var(--accent)', background: 'var(--accent-soft)' }}
-        >
-          A quiz is currently live. Use the{' '}
-          <Link
-            href={`/mentor/sessions/${session.id}/quiz/run`}
-            className="link font-medium"
-          >
-            live panel
-          </Link>{' '}
-          to control it. To edit questions, end or reset the quiz first.
-        </div>
-      ) : (
-        <QuizBuilder
-          quizId={quiz.id}
-          initialQuestions={(questions ?? []) as any}
-          runHref={`/mentor/sessions/${session.id}/quiz/run`}
-        />
-      )}
+      <QuizBuilder
+        quizId={quiz.id}
+        initialQuestions={(questions ?? []) as any}
+        initialStartsAt={quiz.starts_at}
+        initialEndsAt={quiz.ends_at}
+        runHref={`/mentor/sessions/${session.id}/quiz/run`}
+      />
     </>
   );
 }

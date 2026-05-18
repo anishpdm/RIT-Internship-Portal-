@@ -22,11 +22,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'unauthorised' }, { status: 401 });
   }
 
-  // Fetch question + quiz status — only allow answering when quiz is active
+  // Fetch question + quiz status
   const { data: q } = await supabase
     .from('quiz_questions')
     .select(
-      'id, correct_option, options, quizzes:quiz_id (id, status, current_question_index, sessions:session_id (internship_id))',
+      'id, correct_option, options, quizzes:quiz_id (id, status, mode, starts_at, ends_at, sessions:session_id (internship_id))',
     )
     .eq('id', question_id)
     .single();
@@ -36,11 +36,36 @@ export async function POST(req: NextRequest) {
   }
 
   const quiz: any = (q as any).quizzes;
-  if (!quiz || quiz.status !== 'active') {
-    return NextResponse.json(
-      { error: 'Quiz is not active' },
-      { status: 403 },
-    );
+  if (!quiz) {
+    return NextResponse.json({ error: 'quiz not found' }, { status: 404 });
+  }
+
+  // Check the quiz is acceptable to answer — different rules per mode
+  const mode = quiz.mode ?? 'self_paced';
+  if (mode === 'self_paced') {
+    const now = new Date();
+    const startsAt = quiz.starts_at ? new Date(quiz.starts_at) : null;
+    const endsAt = quiz.ends_at ? new Date(quiz.ends_at) : null;
+    if (startsAt && now < startsAt) {
+      return NextResponse.json(
+        { error: 'Quiz has not opened yet' },
+        { status: 403 },
+      );
+    }
+    if (endsAt && now > endsAt) {
+      return NextResponse.json(
+        { error: 'Quiz window has closed' },
+        { status: 403 },
+      );
+    }
+  } else {
+    // Live mode legacy
+    if (quiz.status !== 'active') {
+      return NextResponse.json(
+        { error: 'Quiz is not active' },
+        { status: 403 },
+      );
+    }
   }
 
   // Verify student is enrolled

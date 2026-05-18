@@ -1,11 +1,11 @@
 import { notFound } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { requireRole } from '@/lib/auth';
-import QuizPresenter from '@/components/QuizPresenter';
+import QuizMonitor from '@/components/QuizMonitor';
 
 export const dynamic = 'force-dynamic';
 
-export default async function AdminQuizRunPage({
+export default async function AdminQuizMonitorPage({
   params,
 }: {
   params: { id: string };
@@ -15,7 +15,7 @@ export default async function AdminQuizRunPage({
 
   const { data: session } = await supabase
     .from('sessions')
-    .select('id')
+    .select('id, internship_id')
     .eq('id', params.id)
     .single();
   if (!session) notFound();
@@ -27,11 +27,17 @@ export default async function AdminQuizRunPage({
     .single();
   if (!quiz) notFound();
 
+  // Total enrolled students in this internship — for the monitor's denominator
+  const { count: totalEnrolled } = await supabase
+    .from('enrollments')
+    .select('id', { count: 'exact', head: true })
+    .eq('internship_id', session.internship_id);
+
   return (
-    <QuizPresenter
-      quizId={quiz.id}
+    <QuizMonitor
       sessionId={session.id}
-      backHref={`/admin/sessions/${session.id}`}
+      totalEnrolled={totalEnrolled ?? 0}
+      backHref={`/admin/sessions/${session.id}/quiz`}
     />
   );
 }

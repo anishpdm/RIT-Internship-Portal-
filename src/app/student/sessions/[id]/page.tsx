@@ -45,9 +45,22 @@ export default async function StudentSessionDetailPage({
   // Is there a quiz for this session?
   const { data: quiz } = await supabase
     .from('quizzes')
-    .select('id, status, title')
+    .select('id, status, title, mode, starts_at, ends_at')
     .eq('session_id', params.id)
     .maybeSingle();
+
+  // Window state for self-paced quizzes
+  const nowMs = Date.now();
+  const startMs = quiz?.starts_at ? new Date(quiz.starts_at).getTime() : null;
+  const endMs = quiz?.ends_at ? new Date(quiz.ends_at).getTime() : null;
+  const quizScheduled = !!(quiz && startMs && endMs);
+  const quizOpen = quizScheduled && nowMs >= (startMs as number) && nowMs <= (endMs as number);
+  const quizClosed = quizScheduled && nowMs > (endMs as number);
+  const quizBefore = quizScheduled && nowMs < (startMs as number);
+
+  function fmt(ts: number) {
+    return new Date(ts).toLocaleString();
+  }
 
   return (
     <>
@@ -69,36 +82,42 @@ export default async function StudentSessionDetailPage({
       )}
 
       {/* Quiz CTA */}
-      {quiz && quiz.status !== 'ended' && (
+      {quiz && quizScheduled && (
         <Link
           href={`/student/sessions/${params.id}/quiz`}
           className="card card-hover block mb-6"
           style={{
-            background: quiz.status === 'active' || quiz.status === 'reveal'
+            background: quizOpen
               ? 'linear-gradient(135deg, var(--accent-soft) 0%, rgba(79, 70, 229, 0.05) 100%)'
-              : 'var(--paper)',
-            borderColor: 'var(--accent)',
+              : quizClosed
+                ? 'var(--ink-100)'
+                : 'var(--paper)',
+            borderColor: quizClosed ? 'var(--ink-300)' : 'var(--accent)',
           }}
         >
           <div className="flex items-center justify-between gap-3 flex-wrap">
             <div className="flex items-center gap-3">
               <div
                 className="w-10 h-10 rounded-lg flex items-center justify-center"
-                style={{ background: 'var(--accent)', color: 'white' }}
+                style={{
+                  background: quizClosed ? 'var(--ink-500)' : 'var(--accent)',
+                  color: 'white',
+                }}
               >
                 <Zap size={18} />
               </div>
               <div>
                 <p className="font-display font-semibold">{quiz.title}</p>
                 <p className="text-xs" style={{ color: 'var(--ink-500)' }}>
-                  {quiz.status === 'active' || quiz.status === 'reveal'
-                    ? '🟢 Live now — join in'
-                    : 'Waiting to start'}
+                  {quizOpen && <>🟢 Open · closes at {fmt(endMs as number)}</>}
+                  {quizBefore && <>Opens at {fmt(startMs as number)}</>}
+                  {quizClosed && <>Closed at {fmt(endMs as number)}</>}
                 </p>
               </div>
             </div>
             <span className="btn btn-primary">
-              <Zap size={14} /> Join quiz
+              <Zap size={14} />{' '}
+              {quizOpen ? 'Take quiz' : quizBefore ? 'View details' : 'View result'}
             </span>
           </div>
         </Link>

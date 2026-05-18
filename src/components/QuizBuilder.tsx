@@ -6,11 +6,12 @@ import {
   Plus,
   Trash2,
   GripVertical,
-  Play,
+  Calendar,
   AlertCircle,
   CheckCircle2,
   ChevronUp,
   ChevronDown,
+  Save,
 } from 'lucide-react';
 
 interface Question {
@@ -27,16 +28,29 @@ interface Question {
 export default function QuizBuilder({
   quizId,
   initialQuestions,
+  initialStartsAt,
+  initialEndsAt,
   runHref,
 }: {
   quizId: string;
   initialQuestions: Question[];
+  initialStartsAt: string | null;
+  initialEndsAt: string | null;
   runHref: string;
 }) {
   const supabase = createClient();
   const [questions, setQuestions] = useState<Question[]>(
     initialQuestions.length > 0 ? initialQuestions : [],
   );
+  // Convert ISO → datetime-local format (YYYY-MM-DDTHH:mm)
+  function isoToLocal(iso: string | null): string {
+    if (!iso) return '';
+    const d = new Date(iso);
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  }
+  const [startsAt, setStartsAt] = useState(isoToLocal(initialStartsAt));
+  const [endsAt, setEndsAt] = useState(isoToLocal(initialEndsAt));
   const [msg, setMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -144,36 +158,111 @@ export default function QuizBuilder({
     }
   }
 
-  async function startQuiz() {
+  async function saveSchedule() {
     if (questions.length === 0) {
       setMsg({ type: 'err', text: 'Add at least one question first.' });
       return;
     }
     if (questions.some((q) => q.isDirty || q.isNew)) {
-      setMsg({ type: 'err', text: 'Save changes before starting.' });
+      setMsg({ type: 'err', text: 'Save questions before scheduling.' });
+      return;
+    }
+    if (!startsAt || !endsAt) {
+      setMsg({ type: 'err', text: 'Set both start and end times.' });
+      return;
+    }
+    const startMs = new Date(startsAt).getTime();
+    const endMs = new Date(endsAt).getTime();
+    if (Number.isNaN(startMs) || Number.isNaN(endMs)) {
+      setMsg({ type: 'err', text: 'Invalid date/time.' });
+      return;
+    }
+    if (endMs <= startMs) {
+      setMsg({ type: 'err', text: 'End time must be after start time.' });
       return;
     }
     setBusy(true);
     setMsg(null);
     try {
-      const res = await fetch('/api/quiz/control', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ quiz_id: quizId, action: 'start' }),
+      // Decide status from current time vs window
+      const now = Date.now();
+      const status =
+        now < startMs ? 'draft' : now <= endMs ? 'active' : 'ended';
+
+      const { error } = await supabase
+        .from('quizzes')
+        .update({
+          starts_at: new Date(startMs).toISOString(),
+          ends_at: new Date(endMs).toISOString(),
+          mode: 'self_paced',
+          status,
+          reveal_answer: false,
+          current_question_index: 0,
+        })
+        .eq('id', quizId);
+      if (error) throw new Error(error.message);
+      setMsg({
+        type: 'ok',
+        text: `Scheduled. Students can take it between ${new Date(startMs).toLocaleString()} and ${new Date(endMs).toLocaleString()}.`,
       });
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error ?? 'Failed to start');
-      }
-      window.location.href = runHref;
+      setBusy(false);
     } catch (e: any) {
-      setMsg({ type: 'err', text: e?.message ?? 'Failed' });
+      setMsg({ type: 'err', text: e?.message ?? 'Failed to schedule' });
       setBusy(false);
     }
   }
 
   return (
     <div className="space-y-4">
+      {/* Schedule card */}
+      <div
+        className="card"
+        style={{
+          background:
+            'linear-gradient(135deg, var(--accent-soft) 0%, rgba(79, 70, 229, 0.04) 100%)',
+          borderColor: 'var(--accent)',
+        }}
+      >
+        <div className="flex items-center gap-2 mb-3">
+          <div
+            className="w-9 h-9 rounded-lg flex items-center justify-center"
+            style={{ background: 'var(--accent)', color: 'white' }}
+          >
+            <Calendar size={16} />
+          </div>
+          <div>
+            <p className="font-display font-semibold">Quiz window</p>
+            <p className="text-xs" style={{ color: 'var(--ink-500)' }}>
+              Students can take this quiz any time between these two moments.
+            </p>
+          </div>
+        </div>
+        <div className="grid sm:grid-cols-2 gap-3">
+          <div>
+            <label className="text-xs font-medium block mb-1" style={{ color: 'var(--ink-700)' }}>
+              Opens at
+            </label>
+            <input
+              type="datetime-local"
+              value={startsAt}
+              onChange={(e) => setStartsAt(e.target.value)}
+              className="field"
+            />
+          </div>
+          <div>
+            <label className="text-xs font-medium block mb-1" style={{ color: 'var(--ink-700)' }}>
+              Closes at
+            </label>
+            <input
+              type="datetime-local"
+              value={endsAt}
+              onChange={(e) => setEndsAt(e.target.value)}
+              className="field"
+            />
+          </div>
+        </div>
+      </div>
+
       {questions.map((q, idx) => (
         <div key={q.id} className="card">
           <div className="flex items-start gap-3 mb-3">
@@ -318,11 +407,11 @@ export default function QuizBuilder({
         </button>
         <button
           type="button"
-          onClick={startQuiz}
+          onClick={saveSchedule}
           disabled={busy}
           className="btn btn-primary"
         >
-          <Play size={14} /> Start live quiz
+          <Save size={14} /> Save & schedule
         </button>
       </div>
     </div>

@@ -3,6 +3,16 @@ import { createClient, createAdminClient } from '@/lib/supabase/server';
 import { logAudit } from '@/lib/audit';
 
 export async function POST(req: NextRequest) {
+  if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    return NextResponse.json(
+      {
+        error:
+          'Server misconfigured: SUPABASE_SERVICE_ROLE_KEY is missing. Add it in Vercel and redeploy.',
+      },
+      { status: 500 },
+    );
+  }
+
   const body = await req.json().catch(() => ({}));
   const session_id = String(body.session_id ?? '');
 

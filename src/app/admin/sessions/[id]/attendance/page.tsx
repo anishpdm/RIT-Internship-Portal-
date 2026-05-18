@@ -43,8 +43,7 @@ export default async function AttendanceMarkingPage({
     supabase
       .from('enrollments')
       .select('student_id, current_level, profiles:student_id (full_name, email)')
-      .eq('internship_id', session.internship_id)
-      .order('current_level'),
+      .eq('internship_id', session.internship_id),
     supabase
       .from('attendance')
       .select(
@@ -53,7 +52,12 @@ export default async function AttendanceMarkingPage({
       .eq('session_id', session.id),
   ]);
 
-  const enrollments = enrollmentsRes.data ?? [];
+  // Sort alphabetically by name (fall back to email)
+  const enrollments = (enrollmentsRes.data ?? []).slice().sort((a: any, b: any) => {
+    const an = (a.profiles?.full_name ?? a.profiles?.email ?? '').toLowerCase();
+    const bn = (b.profiles?.full_name ?? b.profiles?.email ?? '').toLowerCase();
+    return an.localeCompare(bn);
+  });
   const attendance = attendanceRes.data ?? [];
 
   const attMap = new Map<string, any>();

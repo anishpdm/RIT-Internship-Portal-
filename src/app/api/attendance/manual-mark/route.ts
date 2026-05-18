@@ -1,11 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { createClient, createAdminClient } from '@/lib/supabase/server';
 import { logAudit } from '@/lib/audit';
 
-/**
- * Manual attendance marking by mentor/admin.
- * Body: { session_id, student_id, status: 'present'|'partial'|'absent'|'clear' }
- */
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => ({}));
   const session_id = String(body.session_id ?? '');
@@ -19,6 +15,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid status' }, { status: 400 });
   }
 
+  // Read with user auth — for permission check
   const supabase = createClient();
   const {
     data: { user },
@@ -27,7 +24,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Not signed in' }, { status: 401 });
   }
 
-  // Verify the caller is admin or a mentor for this session's internship
   const { data: profile } = await supabase
     .from('profiles')
     .select('role')
@@ -41,7 +37,6 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // Look up session + its internship for the mentor scope check
   const { data: session } = await supabase
     .from('sessions')
     .select('id, internship_id')
@@ -66,15 +61,34 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // Clear → delete the row
+  // Verify student is enrolled in this internship
+  const { data: enrollment } = await supabase
+    .from('enrollments')
+    .select('id')
+    .eq('student_id', student_id)
+    .eq('internship_id', session.internship_id)
+    .maybeSingle();
+  if (!enrollment) {
+    return NextResponse.json(
+      { error: 'Student is not enrolled in this internship' },
+      { status: 400 },
+    );
+  }
+
+  // ─────────────────────────────────────
+  // Now do the actual write with admin client (bypasses RLS)
+  // We've fully validated the caller's permission above.
+  // ─────────────────────────────────────
+  const admin = createAdminClient();
+
   if (status === 'clear') {
-    const { error } = await supabase
+    const { error: delErr } = await admin
       .from('attendance')
       .delete()
       .eq('session_id', session_id)
       .eq('student_id', student_id);
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+    if (delErr) {
+      return NextResponse.json({ error: delErr.message }, { status: 500 });
     }
     await logAudit({
       actor_id: user.id,
@@ -87,20 +101,33 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true, cleared: true });
   }
 
-  // Upsert the attendance row
-  const { error } = await supabase.from('attendance').upsert(
-    {
-      session_id,
-      student_id,
-      status,
-      marked_manually_by: user.id,
-      marked_manually_at: new Date().toISOString(),
-    },
-    { onConflict: 'session_id,student_id' },
-  );
+  // Use .select() so we definitely get a row back if the write succeeded
+  const { data: written, error: writeErr } = await admin
+    .from('attendance')
+    .upsert(
+      {
+        session_id,
+        student_id,
+        status,
+        marked_manually_by: user.id,
+        marked_manually_at: new Date().toISOString(),
+      },
+      { onConflict: 'session_id,student_id' },
+    )
+    .select()
+    .single();
 
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  if (writeErr) {
+    return NextResponse.json(
+      { error: `Write failed: ${writeErr.message}` },
+      { status: 500 },
+    );
+  }
+  if (!written) {
+    return NextResponse.json(
+      { error: 'Write returned no row — check unique constraint on attendance(session_id, student_id)' },
+      { status: 500 },
+    );
   }
 
   await logAudit({
@@ -112,5 +139,5 @@ export async function POST(req: NextRequest) {
     details: { status, session_id, student_id },
   });
 
-  return NextResponse.json({ ok: true, status });
+  return NextResponse.json({ ok: true, row: written });
 }

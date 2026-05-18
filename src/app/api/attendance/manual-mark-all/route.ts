@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { createClient, createAdminClient } from '@/lib/supabase/server';
 import { logAudit } from '@/lib/audit';
 
 export async function POST(req: NextRequest) {
@@ -71,13 +71,16 @@ export async function POST(req: NextRequest) {
     marked_manually_at: now,
   }));
 
-  const { error } = await supabase
+  const admin = createAdminClient();
+  const { data: written, error } = await admin
     .from('attendance')
-    .upsert(rows, { onConflict: 'session_id,student_id' });
+    .upsert(rows, { onConflict: 'session_id,student_id' })
+    .select();
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
+  const writtenCount = written?.length ?? 0;
 
   await logAudit({
     actor_id: user.id,
@@ -85,8 +88,8 @@ export async function POST(req: NextRequest) {
     action: 'attendance.bulk_mark_present',
     entity_type: 'session',
     entity_id: session_id,
-    details: { count: studentIds.length, internship_id: session.internship_id },
+    details: { count: writtenCount, internship_id: session.internship_id },
   });
 
-  return NextResponse.json({ ok: true, count: studentIds.length });
+  return NextResponse.json({ ok: true, count: writtenCount });
 }

@@ -8,6 +8,7 @@ import { PageHeader, Pill } from '@/components/ui';
 import { formatDateTime, relativeTime } from '@/lib/utils';
 import { ArrowLeft, ExternalLink, Github } from 'lucide-react';
 import SubmissionForm from './SubmissionForm';
+import FeedbackForm from '@/components/FeedbackForm';
 
 export const dynamic = 'force-dynamic';
 
@@ -88,12 +89,22 @@ export default async function StudentAssignmentDetail({
     .single();
   if (!assignment) notFound();
 
-  const { data: sub } = await supabase
-    .from('submissions')
-    .select('*')
-    .eq('assignment_id', params.id)
-    .eq('student_id', me.userId)
-    .maybeSingle();
+  const [subRes, feedbackRes] = await Promise.all([
+    supabase
+      .from('submissions')
+      .select('*')
+      .eq('assignment_id', params.id)
+      .eq('student_id', me.userId)
+      .maybeSingle(),
+    supabase
+      .from('assignment_feedback')
+      .select('session_rating, trainer_rating, overall_rating, comment')
+      .eq('assignment_id', params.id)
+      .eq('student_id', me.userId)
+      .maybeSingle(),
+  ]);
+  const sub = subRes.data;
+  const existingFeedback = feedbackRes.data;
 
   return (
     <>
@@ -208,6 +219,15 @@ export default async function StudentAssignmentDetail({
         defaultGithub={sub?.github_url ?? ''}
         defaultNotes={sub?.notes ?? ''}
       />
+
+      {sub && (
+        <div className="mt-10">
+          <FeedbackForm
+            assignmentId={assignment.id}
+            existing={existingFeedback}
+          />
+        </div>
+      )}
     </>
   );
 }

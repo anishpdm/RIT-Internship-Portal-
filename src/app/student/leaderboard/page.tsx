@@ -134,7 +134,7 @@ export default async function StudentLeaderboardPage() {
       <PageHeader
         eyebrow="Student"
         title="Leaderboard"
-        subtitle="Combined ranking: 90% from assignment scores + 10% from live quizzes. Updates after each evaluation."
+        subtitle="Combined ranking: 95% from assignment scores + 5% from live quizzes. Updates after each evaluation."
       />
 
       <div className="space-y-10">
@@ -142,12 +142,12 @@ export default async function StudentLeaderboardPage() {
           const rows = leaderboards[i.id] ?? [];
           const quizMap = quizAggregates[i.id] ?? new Map();
 
-          // Compute combined score: 90% assignments + 10% quiz
+          // Compute combined score: 95% assignments + 5% quiz
           const rowsWithCombined = rows.map((r) => {
             const quiz = quizMap.get(r.student_id);
             const quizPct = quiz?.score ?? 0;
             const assignmentPct = Number(r.total_score ?? 0);
-            const combined = assignmentPct * 0.9 + quizPct * 0.1;
+            const combined = assignmentPct * 0.95 + quizPct * 0.05;
             return {
               ...r,
               quiz_score: quizPct,

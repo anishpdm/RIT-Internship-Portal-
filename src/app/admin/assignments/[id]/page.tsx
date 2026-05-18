@@ -75,6 +75,27 @@ export default async function AssignmentDetailPage({
     }
   }
 
+  // Fetch feedback responses for this assignment
+  const { data: feedbackRows } = await supabase
+    .from('assignment_feedback')
+    .select(
+      'session_rating, trainer_rating, overall_rating, comment, created_at, student_id, profiles:student_id (full_name, email)',
+    )
+    .eq('assignment_id', params.id)
+    .order('created_at', { ascending: false });
+
+  // Compute averages
+  const fbCount = feedbackRows?.length ?? 0;
+  const avg = (key: 'session_rating' | 'trainer_rating' | 'overall_rating') => {
+    if (!feedbackRows || feedbackRows.length === 0) return null;
+    const vals = feedbackRows.map((r: any) => r[key]).filter((v) => v != null);
+    if (vals.length === 0) return null;
+    return (vals.reduce((s: number, v: number) => s + v, 0) / vals.length).toFixed(1);
+  };
+  const avgSession = avg('session_rating');
+  const avgTrainer = avg('trainer_rating');
+  const avgOverall = avg('overall_rating');
+
   return (
     <>
       <PrintHeader
@@ -134,6 +155,73 @@ export default async function AssignmentDetailPage({
             </a>
           )}
         </div>
+      )}
+
+      <h2 className="font-display text-2xl mb-4">Student feedback</h2>
+
+      {fbCount === 0 ? (
+        <div className="card mb-10" style={{ color: 'var(--ink-500)' }}>
+          <p className="text-sm">No feedback submitted yet.</p>
+        </div>
+      ) : (
+        <>
+          <div className="grid sm:grid-cols-4 gap-4 mb-5">
+            <div className="card">
+              <p className="eyebrow">Responses</p>
+              <p className="stat-num mt-1" style={{ fontSize: '1.5rem' }}>
+                {fbCount}
+              </p>
+            </div>
+            {[
+              { label: 'Session', val: avgSession },
+              { label: 'Trainer', val: avgTrainer },
+              { label: 'Overall', val: avgOverall },
+            ].map((s) => (
+              <div key={s.label} className="card">
+                <p className="eyebrow">{s.label}</p>
+                <p
+                  className="stat-num mt-1"
+                  style={{
+                    fontSize: '1.5rem',
+                    color: s.val ? '#eab308' : 'var(--ink-500)',
+                  }}
+                >
+                  {s.val ?? '—'}{' '}
+                  {s.val && (
+                    <span className="text-base" style={{ color: '#eab308' }}>
+                      ★
+                    </span>
+                  )}
+                </p>
+              </div>
+            ))}
+          </div>
+
+          {feedbackRows?.some((r: any) => r.comment) && (
+            <div className="card mb-10">
+              <p className="eyebrow mb-3">Comments</p>
+              <div className="space-y-3">
+                {feedbackRows
+                  .filter((r: any) => r.comment)
+                  .map((r: any, i: number) => (
+                    <div
+                      key={i}
+                      className="pl-3"
+                      style={{ borderLeft: '3px solid var(--accent)' }}
+                    >
+                      <p className="text-sm leading-relaxed">{r.comment}</p>
+                      <p
+                        className="text-xs mt-1"
+                        style={{ color: 'var(--ink-500)' }}
+                      >
+                        — {r.profiles?.full_name ?? 'Anonymous'}
+                      </p>
+                    </div>
+                  ))}
+              </div>
+            </div>
+          )}
+        </>
       )}
 
       <h2 className="font-display text-2xl mb-4">Submissions</h2>

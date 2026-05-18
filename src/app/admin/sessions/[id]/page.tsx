@@ -6,7 +6,7 @@ import { requireRole } from '@/lib/auth';
 import { logAudit } from '@/lib/audit';
 import { PageHeader, Pill, EmptyState } from '@/components/ui';
 import { formatDateTime } from '@/lib/utils';
-import { ArrowLeft, Trash2, FileText, Link as LinkIcon, Pencil, Video, Zap } from 'lucide-react';
+import { ArrowLeft, Trash2, FileText, Link as LinkIcon, Pencil, Video, Zap, UserCheck } from 'lucide-react';
 import ConfirmDeleteButton from '@/components/ConfirmDeleteButton';
 import LiveCodePanel from './LiveCodePanel';
 
@@ -153,6 +153,12 @@ export default async function SessionDetailPage({
         subtitle={`${session.session_type.replace('_', ' ')} · ${formatDateTime(session.scheduled_at)}`}
         actions={
           <>
+            <Link
+              href={`/admin/sessions/${session.id}/attendance`}
+              className="btn btn-secondary"
+            >
+              <UserCheck size={14} /> Attendance
+            </Link>
             <Link href={`/admin/sessions/${session.id}/quiz`} className="btn btn-secondary">
               <Zap size={14} /> Quiz
             </Link>

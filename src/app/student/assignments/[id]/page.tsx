@@ -6,7 +6,7 @@ import { requireRole } from '@/lib/auth';
 import { logAudit } from '@/lib/audit';
 import { PageHeader, Pill } from '@/components/ui';
 import { formatDateTime, relativeTime } from '@/lib/utils';
-import { ArrowLeft, ExternalLink, Github } from 'lucide-react';
+import { ArrowLeft, ExternalLink, Github, AlertCircle } from 'lucide-react';
 import SubmissionForm from './SubmissionForm';
 import FeedbackForm from '@/components/FeedbackForm';
 
@@ -105,6 +105,60 @@ export default async function StudentAssignmentDetail({
   ]);
   const sub = subRes.data;
   const existingFeedback = feedbackRes.data;
+  const feedbackRequired = !!sub && !existingFeedback;
+
+  // MANDATORY FEEDBACK GATE: if student has submitted but not given feedback,
+  // show ONLY the feedback form. They can leave via the sidebar but cannot view
+  // their submission, the brief, or resubmit until feedback is given.
+  if (feedbackRequired) {
+    return (
+      <>
+        <PageHeader
+          eyebrow={(assignment as any).internships?.title ?? 'Assignment'}
+          title={assignment.title}
+          subtitle="One quick step before you continue."
+          actions={
+            <Link href="/student/assignments" className="btn btn-ghost">
+              <ArrowLeft size={16} /> All assignments
+            </Link>
+          }
+        />
+
+        <div
+          className="card mb-6 fade-in"
+          style={{
+            background:
+              'linear-gradient(135deg, var(--accent-soft) 0%, rgba(79, 70, 229, 0.04) 100%)',
+            borderColor: 'var(--accent)',
+            borderWidth: 2,
+          }}
+        >
+          <div className="flex items-center gap-3">
+            <div
+              className="w-10 h-10 rounded-lg flex items-center justify-center shrink-0"
+              style={{ background: 'var(--accent)', color: 'white' }}
+            >
+              <AlertCircle size={18} />
+            </div>
+            <div>
+              <p className="font-display font-semibold">
+                Your work is submitted — please rate this session
+              </p>
+              <p className="text-sm mt-1" style={{ color: 'var(--ink-700)' }}>
+                Your feedback helps mentors improve. It takes 10 seconds. After you
+                submit feedback, you&apos;ll see your submission status here.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <FeedbackForm
+          assignmentId={assignment.id}
+          existing={existingFeedback}
+        />
+      </>
+    );
+  }
 
   return (
     <>
@@ -118,6 +172,44 @@ export default async function StudentAssignmentDetail({
           </Link>
         }
       />
+
+      {sub && !existingFeedback && (
+        <a
+          href="#feedback-required"
+          className="card mb-6 block fade-in"
+          style={{
+            background:
+              'linear-gradient(135deg, var(--red-soft) 0%, rgba(239, 68, 68, 0.04) 100%)',
+            borderColor: 'var(--red-500)',
+            borderWidth: 2,
+          }}
+        >
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <div className="flex items-center gap-3">
+              <div
+                className="w-10 h-10 rounded-lg flex items-center justify-center shrink-0"
+                style={{ background: 'var(--red-500)', color: 'white' }}
+              >
+                <AlertCircle size={18} />
+              </div>
+              <div>
+                <p className="font-display font-semibold">
+                  Feedback pending
+                </p>
+                <p
+                  className="text-xs"
+                  style={{ color: 'var(--ink-700)' }}
+                >
+                  You&apos;ve submitted this assignment but haven&apos;t given feedback yet. Please share your thoughts below — it&apos;s required.
+                </p>
+              </div>
+            </div>
+            <span className="btn btn-primary text-sm">
+              Give feedback ↓
+            </span>
+          </div>
+        </a>
+      )}
 
       {assignment.description && (
         <div className="card mb-6">
@@ -221,7 +313,7 @@ export default async function StudentAssignmentDetail({
       />
 
       {sub && (
-        <div className="mt-10">
+        <div className="mt-10" id="feedback-required">
           <FeedbackForm
             assignmentId={assignment.id}
             existing={existingFeedback}

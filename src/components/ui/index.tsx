@@ -26,7 +26,7 @@ export function Stat({
   value,
 }: {
   label: string;
-  value: string | number;
+  value: React.ReactNode;
 }) {
   return (
     <div className="card">

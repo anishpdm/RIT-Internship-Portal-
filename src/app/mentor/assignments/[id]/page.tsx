@@ -83,14 +83,24 @@ export default async function MentorAssignmentDetailPage({ params }: { params: {
     }
   }
 
-  // Fetch feedback for this assignment
-  const { data: feedbackRows } = await supabase
-    .from('assignment_feedback')
-    .select(
-      'session_rating, trainer_rating, overall_rating, comment, created_at, student_id, profiles:student_id (full_name, email)',
-    )
-    .eq('assignment_id', params.id)
-    .order('created_at', { ascending: false });
+  // Fetch feedback for this assignment — gated by internship visibility flag
+  const { data: internship } = await supabase
+    .from('internships')
+    .select('feedback_visible_to_mentors')
+    .eq('id', (assignment as any).internship_id)
+    .single();
+
+  const canSeeFeedback = !!internship?.feedback_visible_to_mentors;
+
+  const { data: feedbackRows } = canSeeFeedback
+    ? await supabase
+        .from('assignment_feedback')
+        .select(
+          'session_rating, trainer_rating, overall_rating, comment, created_at, student_id, profiles:student_id (full_name, email)',
+        )
+        .eq('assignment_id', params.id)
+        .order('created_at', { ascending: false })
+    : { data: [] as any[] };
 
   const fbCount = feedbackRows?.length ?? 0;
   const avg = (key: 'session_rating' | 'trainer_rating' | 'overall_rating') => {
@@ -157,7 +167,13 @@ export default async function MentorAssignmentDetailPage({ params }: { params: {
 
       <h2 className="font-display text-xl font-semibold mb-4">Student feedback</h2>
 
-      {fbCount === 0 ? (
+      {!canSeeFeedback ? (
+        <div className="card mb-10" style={{ color: 'var(--ink-500)' }}>
+          <p className="text-sm">
+            Student feedback for this internship is currently visible to admins only.
+          </p>
+        </div>
+      ) : fbCount === 0 ? (
         <div className="card mb-10" style={{ color: 'var(--ink-500)' }}>
           <p className="text-sm">No feedback submitted yet.</p>
         </div>

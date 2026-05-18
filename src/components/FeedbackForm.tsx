@@ -89,8 +89,8 @@ export default function FeedbackForm({
   const [err, setErr] = useState<string | null>(null);
 
   async function submit() {
-    if (!session && !trainer && !overall) {
-      setErr('Pick at least one rating before submitting.');
+    if (!session || !trainer || !overall) {
+      setErr('Please rate all three: Session, Trainer, and Overall.');
       return;
     }
     setBusy(true);
@@ -188,22 +188,41 @@ export default function FeedbackForm({
   }
 
   return (
-    <div className="card">
-      <div className="flex items-center gap-2 mb-1">
-        <div
-          className="w-9 h-9 rounded-lg flex items-center justify-center"
-          style={{ background: 'var(--accent-soft)', color: 'var(--accent)' }}
+    <div
+      className="card"
+      style={{
+        borderColor: 'var(--accent)',
+        borderWidth: 2,
+        background:
+          'linear-gradient(135deg, var(--accent-soft) 0%, rgba(79, 70, 229, 0.02) 100%)',
+      }}
+      id="feedback-required"
+    >
+      <div className="flex items-center justify-between gap-2 mb-1 flex-wrap">
+        <div className="flex items-center gap-2">
+          <div
+            className="w-9 h-9 rounded-lg flex items-center justify-center"
+            style={{ background: 'var(--accent)', color: 'white' }}
+          >
+            <Star size={16} />
+          </div>
+          <div>
+            <p className="font-display font-semibold">Feedback required</p>
+            <p className="text-xs" style={{ color: 'var(--ink-500)' }}>
+              Please rate today&apos;s session and trainer before leaving this page.
+            </p>
+          </div>
+        </div>
+        <span
+          className="pill"
+          style={{
+            background: 'var(--red-soft)',
+            color: 'var(--red-700)',
+            fontWeight: 600,
+          }}
         >
-          <Star size={16} />
-        </div>
-        <div>
-          <p className="font-display font-semibold">
-            Quick feedback (optional)
-          </p>
-          <p className="text-xs" style={{ color: 'var(--ink-500)' }}>
-            Help us improve by rating today&apos;s session and trainer.
-          </p>
-        </div>
+          Required
+        </span>
       </div>
 
       <div className="space-y-5 mt-5">

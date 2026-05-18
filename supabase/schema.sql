@@ -117,6 +117,7 @@ create table if not exists public.internships (
   start_date    date,
   end_date      date,
   status        internship_status not null default 'draft',
+  feedback_visible_to_mentors boolean default false,
   created_by    uuid references public.profiles(id),
   created_at    timestamptz not null default now(),
   updated_at    timestamptz not null default now()

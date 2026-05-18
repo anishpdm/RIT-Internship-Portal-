@@ -6,7 +6,7 @@ import { PageHeader, Stat, Pill, EmptyState } from '@/components/ui';
 import PrintButton from '@/components/PrintButton';
 import PrintHeader from '@/components/PrintHeader';
 import { HorizontalBarChart, DonutChart } from '@/components/Charts';
-import { ArrowLeft, Trophy, Users, TrendingUp, Calendar, Upload, Layers } from 'lucide-react';
+import { ArrowLeft, Trophy, Users, TrendingUp, Calendar, Upload, Layers, Star } from 'lucide-react';
 
 export const dynamic = 'force-dynamic';
 
@@ -106,6 +106,9 @@ export default async function MentorInternshipPerformancePage({
         subtitle="Attendance, submissions and scores for every student in this internship."
         actions={
           <>
+            <Link href={`/mentor/performance/${params.id}/feedback`} className="btn btn-secondary">
+              <Star size={14} /> Feedback
+            </Link>
             <Link href={`/mentor/performance/${params.id}/levels`} className="btn btn-secondary">
               <Layers size={14} /> Levels
             </Link>

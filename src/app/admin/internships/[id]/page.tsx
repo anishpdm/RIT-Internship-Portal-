@@ -6,7 +6,7 @@ import { requireRole } from '@/lib/auth';
 import { PageHeader, Pill, Stat } from '@/components/ui';
 import { logAudit } from '@/lib/audit';
 import { formatDate } from '@/lib/utils';
-import { TrendingUp, Pencil, Upload, Trash2, Layers } from 'lucide-react';
+import { TrendingUp, Pencil, Upload, Trash2, Layers, Star } from 'lucide-react';
 import ConfirmDeleteButton from '@/components/ConfirmDeleteButton';
 
 export const dynamic = 'force-dynamic';
@@ -26,6 +26,30 @@ async function updateInternshipStatus(formData: FormData) {
     entity_id: id,
     details: { status },
   });
+  revalidatePath(`/admin/internships/${id}`);
+  redirect(`/admin/internships/${id}`);
+}
+
+async function toggleFeedbackVisibility(formData: FormData) {
+  'use server';
+  const me = await requireRole('admin');
+  const supabase = createClient();
+  const id = String(formData.get('id'));
+  const current = formData.get('current') === 'true';
+  const next = !current;
+  await supabase
+    .from('internships')
+    .update({ feedback_visible_to_mentors: next })
+    .eq('id', id);
+  await logAudit({
+    actor_id: me.userId,
+    actor_role: 'admin',
+    action: 'feedback.visibility_toggle',
+    entity_type: 'internship',
+    entity_id: id,
+    details: { visible_to_mentors: next },
+  });
+  revalidatePath(`/admin/internships/${id}`);
   redirect(`/admin/internships/${id}`);
 }
 
@@ -216,10 +240,22 @@ export default async function InternshipDetailPage({
               <TrendingUp size={14} /> Performance
             </Link>
             <Link
+              href={`/admin/internships/${internship.id}/feedback`}
+              className="btn btn-secondary"
+            >
+              <Star size={14} /> Feedback
+            </Link>
+            <Link
               href={`/admin/internships/${internship.id}/levels`}
               className="btn btn-secondary"
             >
               <Layers size={14} /> Levels
+            </Link>
+            <Link
+              href={`/admin/internships/${internship.id}/feedback`}
+              className="btn btn-secondary"
+            >
+              <Star size={14} /> Feedback
             </Link>
             <Link
               href={`/admin/internships/${internship.id}/edit`}

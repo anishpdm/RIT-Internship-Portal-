@@ -28,10 +28,21 @@ export default async function StudentAssignmentsPage() {
     assignments = data ?? [];
   }
 
-  const { data: mySubs } = await supabase
-    .from('submissions')
-    .select('assignment_id, status, score, submitted_at')
-    .eq('student_id', me.userId);
+  // Parallel: submissions + feedback
+  const [mySubsRes, myFeedbackRes] = await Promise.all([
+    supabase
+      .from('submissions')
+      .select('assignment_id, status, score, submitted_at')
+      .eq('student_id', me.userId),
+    supabase
+      .from('assignment_feedback')
+      .select('assignment_id')
+      .eq('student_id', me.userId),
+  ]);
+  const mySubs = mySubsRes.data;
+  const feedbackGivenSet = new Set(
+    (myFeedbackRes.data ?? []).map((r: any) => r.assignment_id),
+  );
   const subMap = new Map<string, any>(
     (mySubs ?? []).map((s: any) => [s.assignment_id, s]),
   );
@@ -91,17 +102,32 @@ export default async function StudentAssignmentsPage() {
                     </td>
                     <td>
                       {sub ? (
-                        <Pill
-                          tone={
-                            sub.status === 'graded'
-                              ? 'green'
-                              : sub.status === 'returned'
-                                ? 'red'
-                                : 'blue'
-                          }
-                        >
-                          {sub.status}
-                        </Pill>
+                        <>
+                          <Pill
+                            tone={
+                              sub.status === 'graded'
+                                ? 'green'
+                                : sub.status === 'returned'
+                                  ? 'red'
+                                  : 'blue'
+                            }
+                          >
+                            {sub.status}
+                          </Pill>
+                          {!feedbackGivenSet.has(a.id) && (
+                            <span
+                              className="pill ml-1"
+                              style={{
+                                background: 'var(--red-soft)',
+                                color: 'var(--red-700)',
+                                fontWeight: 600,
+                                fontSize: '0.65rem',
+                              }}
+                            >
+                              ⚠ feedback pending
+                            </span>
+                          )}
+                        </>
                       ) : (
                         <Pill tone="accent">pending</Pill>
                       )}

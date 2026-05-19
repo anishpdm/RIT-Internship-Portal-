@@ -4,7 +4,7 @@ import { createClient, createAdminClient } from '@/lib/supabase/server';
 import { requireRole } from '@/lib/auth';
 import { PageHeader, Pill, EmptyState } from '@/components/ui';
 import { formatDateTime } from '@/lib/utils';
-import { ArrowLeft, AlertTriangle } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
 import AttendanceRowActions from '@/components/AttendanceRowActions';
 import BulkMarkAllPresent from '@/components/BulkMarkAllPresent';
 
@@ -38,45 +38,48 @@ export default async function AttendanceMarkingPage({
   }
 
   const basePath = me.profile.role === 'admin' ? 'admin' : 'mentor';
-
-  // Use admin client for reliable reads — bypasses any RLS hiccups
   const admin = createAdminClient();
 
-  // Enrollments
-  const enrollmentsRes = await admin
-    .from('enrollments')
-    .select('student_id, current_level, profiles:student_id (full_name, email)')
-    .eq('internship_id', session.internship_id);
+  // Fetch enrollments + attendance + all profiles in one wave.
+  // SELECT * on attendance always works regardless of which columns exist.
+  const [enrollmentsRes, attendanceRes] = await Promise.all([
+    admin
+      .from('enrollments')
+      .select('student_id, current_level, profiles:student_id (full_name, email)')
+      .eq('internship_id', session.internship_id),
+    admin.from('attendance').select('*').eq('session_id', session.id),
+  ]);
 
-  // Attendance — try full query first, fall back if migration 007 not run
-  let attendance: any[] = [];
-  let schemaHasManualColumns = true;
+  const enrollments = (enrollmentsRes.data ?? [])
+    .slice()
+    .sort((a: any, b: any) => {
+      const an = (a.profiles?.full_name ?? a.profiles?.email ?? '').toLowerCase();
+      const bn = (b.profiles?.full_name ?? b.profiles?.email ?? '').toLowerCase();
+      return an.localeCompare(bn);
+    });
+  const attendance = attendanceRes.data ?? [];
 
-  const fullAttRes = await admin
-    .from('attendance')
-    .select(
-      'student_id, status, code_entered_at, joined_at, marked_manually_by, marked_manually_at, markers:marked_manually_by (full_name, email)',
-    )
-    .eq('session_id', session.id);
-
-  if (fullAttRes.error) {
-    // Migration 007 likely not run — fall back to basic select
-    schemaHasManualColumns = false;
-    const basicRes = await admin
-      .from('attendance')
-      .select('student_id, status, code_entered_at, joined_at')
-      .eq('session_id', session.id);
-    attendance = basicRes.data ?? [];
-  } else {
-    attendance = fullAttRes.data ?? [];
+  // Fetch marker profiles in a separate query — no FK auto-join needed
+  const markerIds = Array.from(
+    new Set(
+      attendance
+        .map((a: any) => a.marked_manually_by)
+        .filter((id: string | null | undefined): id is string => !!id),
+    ),
+  );
+  const markerProfiles = new Map<
+    string,
+    { full_name: string | null; email: string | null }
+  >();
+  if (markerIds.length > 0) {
+    const { data: profiles } = await admin
+      .from('profiles')
+      .select('id, full_name, email')
+      .in('id', markerIds);
+    for (const p of profiles ?? []) {
+      markerProfiles.set(p.id, { full_name: p.full_name, email: p.email });
+    }
   }
-
-  // Sort alphabetically
-  const enrollments = (enrollmentsRes.data ?? []).slice().sort((a: any, b: any) => {
-    const an = (a.profiles?.full_name ?? a.profiles?.email ?? '').toLowerCase();
-    const bn = (b.profiles?.full_name ?? b.profiles?.email ?? '').toLowerCase();
-    return an.localeCompare(bn);
-  });
 
   const attMap = new Map<string, any>();
   for (const a of attendance) attMap.set((a as any).student_id, a);
@@ -107,48 +110,30 @@ export default async function AttendanceMarkingPage({
         }
       />
 
-      {!schemaHasManualColumns && (
-        <div
-          className="card mb-6 flex items-start gap-3"
-          style={{
-            background: 'rgba(234, 179, 8, 0.12)',
-            borderColor: '#eab308',
-            color: '#854d0e',
-          }}
-        >
-          <AlertTriangle size={18} className="mt-0.5 shrink-0" />
-          <div>
-            <p className="font-display font-semibold mb-1">
-              Manual-marking history not enabled
-            </p>
-            <p className="text-sm">
-              Attendance marking works, but the &quot;How marked&quot; column won&apos;t
-              show your name or timestamp until you run{' '}
-              <code className="font-mono text-xs px-1 rounded" style={{ background: 'rgba(0,0,0,0.06)' }}>
-                supabase/migrations/007_manual_attendance.sql
-              </code>{' '}
-              in your Supabase SQL Editor. The status itself saves fine.
-            </p>
-          </div>
-        </div>
-      )}
-
       <div className="grid sm:grid-cols-4 gap-4 mb-6">
         <div className="card">
           <p className="eyebrow">Present</p>
-          <p className="stat-num" style={{ color: 'var(--green-700)' }}>{counts.present}</p>
+          <p className="stat-num" style={{ color: 'var(--green-700)' }}>
+            {counts.present}
+          </p>
         </div>
         <div className="card">
           <p className="eyebrow">Partial</p>
-          <p className="stat-num" style={{ color: '#eab308' }}>{counts.partial}</p>
+          <p className="stat-num" style={{ color: '#eab308' }}>
+            {counts.partial}
+          </p>
         </div>
         <div className="card">
           <p className="eyebrow">Absent</p>
-          <p className="stat-num" style={{ color: 'var(--red-500)' }}>{counts.absent}</p>
+          <p className="stat-num" style={{ color: 'var(--red-500)' }}>
+            {counts.absent}
+          </p>
         </div>
         <div className="card">
           <p className="eyebrow">Not marked</p>
-          <p className="stat-num" style={{ color: 'var(--ink-500)' }}>{counts.notMarked}</p>
+          <p className="stat-num" style={{ color: 'var(--ink-500)' }}>
+            {counts.notMarked}
+          </p>
         </div>
       </div>
 
@@ -172,8 +157,8 @@ export default async function AttendanceMarkingPage({
                 const studentId = e.student_id;
                 const a = attMap.get(studentId);
                 const status = a?.status ?? null;
-                const manualBy = a?.markers;
-                const isManual = !!a?.marked_manually_by;
+                const markerId: string | null = a?.marked_manually_by ?? null;
+                const marker = markerId ? markerProfiles.get(markerId) : null;
                 const name = e.profiles?.full_name ?? e.profiles?.email ?? '—';
 
                 return (
@@ -189,7 +174,10 @@ export default async function AttendanceMarkingPage({
                       {status === 'partial' && <Pill tone="amber">Partial</Pill>}
                       {status === 'absent' && <Pill tone="red">Absent</Pill>}
                       {!status && (
-                        <span className="text-xs" style={{ color: 'var(--ink-500)' }}>
+                        <span
+                          className="text-xs"
+                          style={{ color: 'var(--ink-500)' }}
+                        >
                           Not marked
                         </span>
                       )}
@@ -197,21 +185,33 @@ export default async function AttendanceMarkingPage({
                     <td className="text-xs" style={{ color: 'var(--ink-500)' }}>
                       {!a ? (
                         '—'
-                      ) : isManual ? (
+                      ) : marker ? (
                         <>
                           Manually by{' '}
                           <strong style={{ color: 'var(--ink-700)' }}>
-                            {manualBy?.full_name ?? manualBy?.email ?? 'staff'}
+                            {marker.full_name ?? marker.email ?? 'staff'}
                           </strong>
-                          <br />
-                          {a.marked_manually_at && formatDateTime(a.marked_manually_at)}
+                          {a.marked_manually_at && (
+                            <>
+                              <br />
+                              {formatDateTime(a.marked_manually_at)}
+                            </>
+                          )}
                         </>
                       ) : a.code_entered_at ? (
-                        <>Self via code<br />{formatDateTime(a.code_entered_at)}</>
+                        <>
+                          Self via code
+                          <br />
+                          {formatDateTime(a.code_entered_at)}
+                        </>
                       ) : a.joined_at ? (
-                        <>Self<br />{formatDateTime(a.joined_at)}</>
+                        <>
+                          Self
+                          <br />
+                          {formatDateTime(a.joined_at)}
+                        </>
                       ) : status ? (
-                        <em>Set without metadata</em>
+                        <em>Set manually (no history)</em>
                       ) : (
                         '—'
                       )}

@@ -59,7 +59,11 @@ export default async function StudentSessionDetailPage({
   const quizBefore = quizScheduled && nowMs < (startMs as number);
 
   function fmt(ts: number) {
-    return new Date(ts).toLocaleString();
+    return new Date(ts).toLocaleString('en-IN', {
+      timeZone: 'Asia/Kolkata',
+      dateStyle: 'medium',
+      timeStyle: 'short',
+    });
   }
 
   return (

@@ -1,14 +1,14 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { isoToISTLocalInput, istLocalInputToISO } from '@/lib/utils';
 
 /**
- * Datetime input that submits a proper ISO 8601 string (with timezone)
- * via a hidden field, while displaying a friendly local datetime-local picker.
+ * Datetime input that ALWAYS treats input/output as IST (Asia/Kolkata),
+ * regardless of the browser's local timezone.
  *
- * Why this exists: <input type="datetime-local"> submits "2024-12-25T14:00"
- * with no timezone, which PostgreSQL stores as UTC, making sessions appear
- * 5.5 hours later than intended for users in India.
+ * The visible <input type="datetime-local"> shows IST date+time.
+ * The hidden field submits a proper UTC ISO 8601 string for Postgres.
  */
 export default function DateTimeField({
   name,
@@ -22,18 +22,14 @@ export default function DateTimeField({
   const [local, setLocal] = useState('');
   const [iso, setIso] = useState('');
 
-  // Convert any existing ISO value back to a local-time string for display
+  // Convert any existing UTC ISO value back to IST-formatted local-input string
   useEffect(() => {
     if (!defaultValue) return;
-    try {
-      const d = new Date(defaultValue);
-      if (isNaN(d.getTime())) return;
-      // Convert to local-time string in YYYY-MM-DDTHH:mm format
-      const pad = (n: number) => String(n).padStart(2, '0');
-      const v = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    const v = isoToISTLocalInput(defaultValue);
+    if (v) {
       setLocal(v);
-      setIso(d.toISOString());
-    } catch {}
+      setIso(new Date(defaultValue).toISOString());
+    }
   }, [defaultValue]);
 
   function onChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -43,11 +39,9 @@ export default function DateTimeField({
       setIso('');
       return;
     }
-    // new Date("2024-12-25T14:00") interprets as LOCAL time in the browser
-    const d = new Date(v);
-    if (!isNaN(d.getTime())) {
-      setIso(d.toISOString());
-    }
+    // Treat the naive datetime-local string as IST and convert to UTC for the DB
+    const utc = istLocalInputToISO(v);
+    if (utc) setIso(utc);
   }
 
   return (
@@ -60,6 +54,9 @@ export default function DateTimeField({
         required={required}
       />
       <input type="hidden" name={name} value={iso} />
+      <p className="text-xs mt-1" style={{ color: 'var(--ink-500)' }}>
+        Time in IST (Asia/Kolkata).
+      </p>
     </>
   );
 }

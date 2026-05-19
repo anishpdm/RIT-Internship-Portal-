@@ -190,10 +190,10 @@ export default function QuizTaker({
           </p>
           <div className="text-xs mt-4" style={{ color: 'var(--ink-500)' }}>
             <p>
-              <strong>Opens:</strong> {new Date(opens).toLocaleString()}
+              <strong>Opens:</strong> {new Date(opens).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', dateStyle: 'medium', timeStyle: 'short' })} IST
             </p>
             <p>
-              <strong>Closes:</strong> {new Date(closes).toLocaleString()}
+              <strong>Closes:</strong> {new Date(closes).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', dateStyle: 'medium', timeStyle: 'short' })} IST
             </p>
           </div>
         </div>

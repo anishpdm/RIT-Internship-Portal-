@@ -8,6 +8,7 @@ export default function PrintHeader({
   const now = new Date().toLocaleString('en-IN', {
     dateStyle: 'long',
     timeStyle: 'short',
+    timeZone: 'Asia/Kolkata',
   });
 
   return (

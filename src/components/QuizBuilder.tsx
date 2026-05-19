@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
+import { isoToISTLocalInput, istLocalInputToISO } from '@/lib/utils';
 import {
   Plus,
   Trash2,
@@ -42,15 +43,8 @@ export default function QuizBuilder({
   const [questions, setQuestions] = useState<Question[]>(
     initialQuestions.length > 0 ? initialQuestions : [],
   );
-  // Convert ISO → datetime-local format (YYYY-MM-DDTHH:mm)
-  function isoToLocal(iso: string | null): string {
-    if (!iso) return '';
-    const d = new Date(iso);
-    const pad = (n: number) => String(n).padStart(2, '0');
-    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-  }
-  const [startsAt, setStartsAt] = useState(isoToLocal(initialStartsAt));
-  const [endsAt, setEndsAt] = useState(isoToLocal(initialEndsAt));
+  const [startsAt, setStartsAt] = useState(isoToISTLocalInput(initialStartsAt ?? null));
+  const [endsAt, setEndsAt] = useState(isoToISTLocalInput(initialEndsAt ?? null));
   const [msg, setMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -171,12 +165,15 @@ export default function QuizBuilder({
       setMsg({ type: 'err', text: 'Set both start and end times.' });
       return;
     }
-    const startMs = new Date(startsAt).getTime();
-    const endMs = new Date(endsAt).getTime();
-    if (Number.isNaN(startMs) || Number.isNaN(endMs)) {
+    // Treat the datetime-local strings as IST and convert to UTC ISO for the DB
+    const startIso = istLocalInputToISO(startsAt);
+    const endIso = istLocalInputToISO(endsAt);
+    if (!startIso || !endIso) {
       setMsg({ type: 'err', text: 'Invalid date/time.' });
       return;
     }
+    const startMs = new Date(startIso).getTime();
+    const endMs = new Date(endIso).getTime();
     if (endMs <= startMs) {
       setMsg({ type: 'err', text: 'End time must be after start time.' });
       return;
@@ -184,7 +181,6 @@ export default function QuizBuilder({
     setBusy(true);
     setMsg(null);
     try {
-      // Decide status from current time vs window
       const now = Date.now();
       const status =
         now < startMs ? 'draft' : now <= endMs ? 'active' : 'ended';
@@ -192,8 +188,8 @@ export default function QuizBuilder({
       const { error } = await supabase
         .from('quizzes')
         .update({
-          starts_at: new Date(startMs).toISOString(),
-          ends_at: new Date(endMs).toISOString(),
+          starts_at: startIso,
+          ends_at: endIso,
           mode: 'self_paced',
           status,
           reveal_answer: false,
@@ -203,7 +199,7 @@ export default function QuizBuilder({
       if (error) throw new Error(error.message);
       setMsg({
         type: 'ok',
-        text: `Scheduled. Students can take it between ${new Date(startMs).toLocaleString()} and ${new Date(endMs).toLocaleString()}.`,
+        text: `Scheduled (IST). Students can take it between ${new Date(startMs).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', dateStyle: 'medium', timeStyle: 'short' })} and ${new Date(endMs).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', dateStyle: 'medium', timeStyle: 'short' })}.`,
       });
       setBusy(false);
     } catch (e: any) {
@@ -240,7 +236,7 @@ export default function QuizBuilder({
         <div className="grid sm:grid-cols-2 gap-3">
           <div>
             <label className="text-xs font-medium block mb-1" style={{ color: 'var(--ink-700)' }}>
-              Opens at
+              Opens at (IST)
             </label>
             <input
               type="datetime-local"
@@ -251,7 +247,7 @@ export default function QuizBuilder({
           </div>
           <div>
             <label className="text-xs font-medium block mb-1" style={{ color: 'var(--ink-700)' }}>
-              Closes at
+              Closes at (IST)
             </label>
             <input
               type="datetime-local"
@@ -261,6 +257,9 @@ export default function QuizBuilder({
             />
           </div>
         </div>
+        <p className="text-xs mt-2" style={{ color: 'var(--ink-500)' }}>
+          All times are in IST (Asia/Kolkata).
+        </p>
       </div>
 
       {questions.map((q, idx) => (

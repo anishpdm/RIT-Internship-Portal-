@@ -88,7 +88,7 @@ export async function GET(req: NextRequest) {
 
       const done = myAnswered >= total && total > 0;
 
-      // Hide correct_option from student
+      // Hide correct_option from student during active window
       let questionForClient: any = null;
       let myResponseForCurrent: any = null;
       if (window_state === 'open' && firstUnanswered) {
@@ -96,6 +96,24 @@ export async function GET(req: NextRequest) {
         questionForClient = rest;
       }
 
+      // When the quiz is CLOSED or student has finished, show full breakdown:
+      // every question with the correct option revealed + the student's pick.
+      let breakdown: any[] | null = null;
+      if (window_state === 'closed' || done) {
+        breakdown = (allQuestions ?? []).map((q: any) => {
+          const r = responseMap.get(q.id);
+          return {
+            question_text: q.question_text,
+            options: q.options,
+            correct_option: q.correct_option,
+            my_option: r?.selected_option ?? null,
+            is_correct: r?.is_correct ?? null,
+          };
+        });
+      }
+
+      // For score "out of total questions" not "out of answered" — clearer
+      // when student didn't finish.
       return NextResponse.json({
         quiz: {
           id: quiz.id,
@@ -110,7 +128,12 @@ export async function GET(req: NextRequest) {
         question: questionForClient,
         myResponseForCurrent,
         done,
-        myScore: { correct: myCorrect, total: myAnswered },
+        myScore: {
+          correct: myCorrect,
+          answered: myAnswered,
+          total, // total questions in quiz, not just answered
+        },
+        breakdown,
       });
     }
 

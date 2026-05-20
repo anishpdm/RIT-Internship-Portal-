@@ -37,7 +37,14 @@ interface State {
     is_correct: boolean;
   } | null;
   done: boolean;
-  myScore: { correct: number; total: number } | null;
+  myScore: { correct: number; answered: number; total: number } | null;
+  breakdown: Array<{
+    question_text: string;
+    options: string[];
+    correct_option: number;
+    my_option: number | null;
+    is_correct: boolean | null;
+  }> | null;
 }
 
 export default function QuizTaker({
@@ -158,7 +165,7 @@ export default function QuizTaker({
     );
   }
 
-  const { quiz, question, myResponseForCurrent, done, myScore } = state;
+  const { quiz, question, myResponseForCurrent, done, myScore, breakdown } = state;
 
   // ───────── Before window ─────────
   if (quiz.window_state === 'before') {
@@ -201,84 +208,182 @@ export default function QuizTaker({
     );
   }
 
-  // ───────── After window ─────────
-  if (quiz.window_state === 'closed') {
-    return (
-      <div className="space-y-4">
-        <Link href={backHref} className="link text-sm">
-          <ChevronLeft size={12} className="inline" /> Back
-        </Link>
-        <div
-          className="card text-center"
-          style={{
-            padding: '3rem 2rem',
-            background: 'var(--ink-100)',
-            borderColor: 'var(--ink-300)',
-          }}
-        >
-          <Lock size={32} style={{ color: 'var(--ink-500)', margin: '0 auto 1rem' }} />
-          <p className="font-display text-2xl font-bold">Quiz closed</p>
-          <p className="text-sm mt-2" style={{ color: 'var(--ink-500)' }}>
-            The window for this quiz has ended.
-          </p>
-          {myScore && (
-            <p
-              className="font-display text-4xl font-bold mt-6"
-              style={{ color: 'var(--accent)' }}
-            >
-              {myScore.correct} / {myScore.total}
-            </p>
-          )}
-        </div>
-      </div>
-    );
-  }
-
-  // ───────── Done (within window, all answered) ─────────
-  if (done) {
+  // ───────── Results: shown when quiz is closed OR student has answered all ─────────
+  if (quiz.window_state === 'closed' || done) {
+    const isClosed = quiz.window_state === 'closed';
     const pct =
       myScore && myScore.total > 0
-        ? ((myScore.correct / myScore.total) * 100).toFixed(0)
-        : null;
+        ? Math.round((myScore.correct / myScore.total) * 100)
+        : 0;
     const closes = quiz.ends_at ? new Date(quiz.ends_at).getTime() : 0;
+    const stillTime = !isClosed && closes - now > 0;
+
     return (
-      <div className="space-y-4">
+      <div className="space-y-5">
         <Link href={backHref} className="link text-sm">
           <ChevronLeft size={12} className="inline" /> Back to session
         </Link>
+
+        {/* Hero score card */}
         <div
           className="card text-center"
           style={{
-            padding: '3rem 2rem',
-            background:
-              'linear-gradient(135deg, var(--accent-soft) 0%, rgba(79, 70, 229, 0.04) 100%)',
-            borderColor: 'var(--accent)',
+            padding: '2.5rem 2rem',
+            background: isClosed
+              ? 'var(--ink-100)'
+              : 'linear-gradient(135deg, var(--accent-soft) 0%, rgba(79, 70, 229, 0.04) 100%)',
+            borderColor: isClosed ? 'var(--ink-300)' : 'var(--accent)',
           }}
         >
-          <Trophy
-            size={40}
-            style={{ color: 'var(--accent)', margin: '0 auto 1rem' }}
-          />
-          <p className="font-display text-3xl font-bold">All done!</p>
+          {isClosed ? (
+            <Lock size={32} style={{ color: 'var(--ink-500)', margin: '0 auto 0.75rem' }} />
+          ) : (
+            <Trophy size={40} style={{ color: 'var(--accent)', margin: '0 auto 0.75rem' }} />
+          )}
+          <p className="font-display text-2xl font-bold">
+            {isClosed ? 'Quiz closed' : 'All done!'}
+          </p>
+
           {myScore && (
             <>
               <p
-                className="font-display text-5xl font-bold mt-4"
-                style={{ color: 'var(--accent)' }}
+                className="font-display font-bold mt-4"
+                style={{ fontSize: '3.5rem', lineHeight: 1, color: 'var(--accent)' }}
               >
-                {myScore.correct} / {myScore.total}
+                {myScore.correct} <span style={{ color: 'var(--ink-500)' }}>/ {myScore.total}</span>
               </p>
-              {pct && (
-                <p className="text-sm mt-2" style={{ color: 'var(--ink-500)' }}>
-                  {pct}% correct
-                </p>
-              )}
+              <p className="text-sm mt-2" style={{ color: 'var(--ink-500)' }}>
+                {pct}% correct
+                {myScore.answered < myScore.total && (
+                  <>
+                    {' · '}
+                    <span style={{ color: 'var(--red-700)' }}>
+                      {myScore.total - myScore.answered} unanswered
+                    </span>
+                  </>
+                )}
+              </p>
             </>
           )}
-          <p className="text-xs mt-6" style={{ color: 'var(--ink-500)' }}>
-            Quiz closes in {fmtDuration(closes - now)}
-          </p>
+
+          {stillTime && (
+            <p className="text-xs mt-5" style={{ color: 'var(--ink-500)' }}>
+              Quiz closes in {fmtDuration(closes - now)}
+            </p>
+          )}
         </div>
+
+        {/* Per-question breakdown */}
+        {breakdown && breakdown.length > 0 && (
+          <div>
+            <h2 className="font-display text-xl font-semibold mb-3">
+              Question-by-question
+            </h2>
+            <div className="space-y-3">
+              {breakdown.map((b, i) => {
+                const answered = b.my_option !== null;
+                const correct = b.is_correct === true;
+                const wrong = b.is_correct === false;
+                return (
+                  <div
+                    key={i}
+                    className="card"
+                    style={{
+                      borderLeft: `4px solid ${
+                        !answered
+                          ? 'var(--ink-300)'
+                          : correct
+                            ? 'var(--green-500)'
+                            : 'var(--red-500)'
+                      }`,
+                    }}
+                  >
+                    <div className="flex items-center justify-between gap-3 mb-3">
+                      <p className="font-display font-semibold text-base">
+                        <span
+                          className="font-mono text-sm mr-2"
+                          style={{ color: 'var(--ink-500)' }}
+                        >
+                          Q{i + 1}
+                        </span>
+                        {b.question_text}
+                      </p>
+                      <span
+                        className="text-xs font-semibold uppercase shrink-0"
+                        style={{
+                          letterSpacing: '0.05em',
+                          color: !answered
+                            ? 'var(--ink-500)'
+                            : correct
+                              ? 'var(--green-700)'
+                              : 'var(--red-700)',
+                        }}
+                      >
+                        {!answered ? 'Skipped' : correct ? '✓ Correct' : '✗ Wrong'}
+                      </span>
+                    </div>
+                    <div className="space-y-2">
+                      {b.options.map((opt, optIdx) => {
+                        const isCorrectAns = optIdx === b.correct_option;
+                        const isMyPick = optIdx === b.my_option;
+                        let bg = 'var(--paper)';
+                        let border = 'var(--ink-200)';
+                        let color = 'var(--ink-900)';
+                        if (isCorrectAns) {
+                          bg = 'var(--green-soft)';
+                          border = 'var(--green-500)';
+                          color = 'var(--green-700)';
+                        } else if (isMyPick && !isCorrectAns) {
+                          bg = 'var(--red-soft)';
+                          border = 'var(--red-500)';
+                          color = 'var(--red-700)';
+                        }
+                        return (
+                          <div
+                            key={optIdx}
+                            className="flex items-center gap-2.5 px-3 py-2 rounded-md text-sm"
+                            style={{
+                              background: bg,
+                              border: `1.5px solid ${border}`,
+                              color,
+                            }}
+                          >
+                            <span
+                              className="font-mono font-bold text-xs w-6 h-6 rounded flex items-center justify-center shrink-0"
+                              style={{
+                                background: isCorrectAns
+                                  ? 'var(--green-500)'
+                                  : isMyPick
+                                    ? 'var(--red-500)'
+                                    : 'var(--ink-100)',
+                                color:
+                                  isCorrectAns || isMyPick
+                                    ? 'white'
+                                    : 'var(--ink-700)',
+                              }}
+                            >
+                              {String.fromCharCode(65 + optIdx)}
+                            </span>
+                            <span className="flex-1">{opt}</span>
+                            {isCorrectAns && (
+                              <span className="text-xs font-semibold">Correct</span>
+                            )}
+                            {isMyPick && !isCorrectAns && (
+                              <span className="text-xs font-semibold">Your pick</span>
+                            )}
+                            {isMyPick && isCorrectAns && (
+                              <span className="text-xs font-semibold">Your pick</span>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </div>
     );
   }

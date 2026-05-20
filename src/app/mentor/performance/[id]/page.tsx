@@ -38,12 +38,16 @@ export default async function MentorInternshipPerformancePage({
   if (!internship) notFound();
 
   // PARALLEL FETCH for free-tier speed
-  const [leaderboardRes, sessionsCountRes, assignmentsCountRes] = await Promise.all([
+  const [leaderboardRes, quizAggRes, sessionsCountRes, assignmentsCountRes] = await Promise.all([
     supabase
       .from('v_internship_leaderboard')
       .select('*')
       .eq('internship_id', params.id)
       .order('total_score', { ascending: false }),
+    supabase
+      .from('v_student_quiz_aggregate')
+      .select('student_id, quiz_score_pct, questions_answered, questions_correct')
+      .eq('internship_id', params.id),
     supabase
       .from('sessions')
       .select('id', { count: 'exact', head: true })
@@ -53,11 +57,36 @@ export default async function MentorInternshipPerformancePage({
       .select('id', { count: 'exact', head: true })
       .eq('internship_id', params.id),
   ]);
-  const rows = leaderboardRes.data;
+  const baseRows = leaderboardRes.data ?? [];
   const totalSessions = sessionsCountRes.count;
   const totalAssignments = assignmentsCountRes.count;
 
-  const studentIds = (rows ?? []).map((r: any) => r.student_id);
+  const quizMap = new Map<string, { score: number; correct: number; answered: number }>();
+  for (const q of quizAggRes.data ?? []) {
+    quizMap.set((q as any).student_id, {
+      score: Number((q as any).quiz_score_pct ?? 0),
+      correct: Number((q as any).questions_correct ?? 0),
+      answered: Number((q as any).questions_answered ?? 0),
+    });
+  }
+
+  const rows = baseRows
+    .map((r: any) => {
+      const quiz = quizMap.get(r.student_id);
+      const quizPct = quiz?.score ?? 0;
+      const assignmentPct = Number(r.total_score ?? 0);
+      const combined = assignmentPct * 0.95 + quizPct * 0.05;
+      return {
+        ...r,
+        quiz_score: quizPct,
+        quiz_correct: quiz?.correct ?? 0,
+        quiz_answered: quiz?.answered ?? 0,
+        combined,
+      };
+    })
+    .sort((a: any, b: any) => b.combined - a.combined);
+
+  const studentIds = rows.map((r: any) => r.student_id);
   let submittedMap = new Map<string, number>();
   if (studentIds.length > 0) {
     const { data: subs } = await supabase
@@ -76,7 +105,15 @@ export default async function MentorInternshipPerformancePage({
   const cohortAvg =
     rows && rows.length > 0
       ? (
-          rows.reduce((s: number, r: any) => s + Number(r.total_score ?? 0), 0) /
+          rows.reduce((s: number, r: any) => s + Number(r.combined ?? 0), 0) /
+          rows.length
+        ).toFixed(1)
+      : '0.0';
+
+  const cohortQuizAvg =
+    rows && rows.length > 0
+      ? (
+          rows.reduce((s: number, r: any) => s + Number(r.quiz_score ?? 0), 0) /
           rows.length
         ).toFixed(1)
       : '0.0';
@@ -103,7 +140,7 @@ export default async function MentorInternshipPerformancePage({
       <PageHeader
         eyebrow={`Performance · ${internship.title}`}
         title="Student performance"
-        subtitle="Attendance, submissions and scores for every student in this internship."
+        subtitle="Combined leaderboard: 95% from assignment scores + 5% from quizzes. Sorted by combined score."
         actions={
           <>
             <Link href={`/mentor/performance/${params.id}/feedback`} className="btn btn-secondary">
@@ -125,20 +162,20 @@ export default async function MentorInternshipPerformancePage({
 
       <div className="grid sm:grid-cols-4 gap-5 mb-8">
         <Stat label="Enrolled" value={rows?.length ?? 0} />
-        <Stat label="Cohort avg score" value={`${cohortAvg}%`} />
+        <Stat label="Cohort avg (combined)" value={`${cohortAvg}%`} />
+        <Stat label="Cohort quiz avg" value={`${cohortQuizAvg}%`} />
         <Stat label="Cohort attendance" value={`${cohortAttendanceAvg}%`} />
-        <Stat label="Sessions / Assignments" value={`${totalSessions ?? 0} / ${totalAssignments ?? 0}`} />
       </div>
 
       {rows && rows.length > 0 && (
         <div className="grid lg:grid-cols-2 gap-5 mb-8">
           <div className="card">
-            <p className="eyebrow mb-3">Score distribution</p>
+            <p className="eyebrow mb-3">Combined score distribution</p>
             <HorizontalBarChart
               data={rows.slice(0, 10).map((r: any) => ({
                 label: r.full_name ?? r.email ?? '—',
-                value: Number(r.total_score ?? 0),
-                meta: `L${r.current_level} · ${r.status}`,
+                value: Number(r.combined ?? 0),
+                meta: `L${r.current_level} · ${r.status} · Quiz ${Number(r.quiz_score ?? 0).toFixed(0)}%`,
               }))}
               max={100}
               unit="%"
@@ -177,7 +214,9 @@ export default async function MentorInternshipPerformancePage({
                 <th>Student</th>
                 <th>Level</th>
                 <th>Status</th>
-                <th>Score</th>
+                <th>Assignments</th>
+                <th>Quiz</th>
+                <th>Combined</th>
                 <th>Attendance</th>
                 <th>Submissions</th>
                 <th>Graded</th>
@@ -186,6 +225,8 @@ export default async function MentorInternshipPerformancePage({
             <tbody>
               {rows.map((r: any, idx: number) => {
                 const score = Number(r.total_score ?? 0);
+                const quizScore = Number(r.quiz_score ?? 0);
+                const combined = Number(r.combined ?? 0);
                 const attended = Number(r.attended_sessions ?? 0);
                 const submitted = submittedMap.get(r.student_id) ?? 0;
                 const graded = Number(r.graded_submissions ?? 0);
@@ -227,12 +268,39 @@ export default async function MentorInternshipPerformancePage({
                       </Pill>
                     </td>
                     <td>
+                      <span className="font-mono">{score.toFixed(1)}%</span>
+                    </td>
+                    <td>
+                      {r.quiz_answered > 0 ? (
+                        <>
+                          <span className="font-mono text-sm">{quizScore.toFixed(0)}%</span>
+                          <p className="text-xs" style={{ color: 'var(--ink-500)' }}>
+                            {r.quiz_correct}/{r.quiz_answered}
+                          </p>
+                        </>
+                      ) : (
+                        <span className="text-xs" style={{ color: 'var(--ink-500)' }}>—</span>
+                      )}
+                    </td>
+                    <td>
                       <div className="flex items-center gap-3">
-                        <span className="font-mono font-semibold">{score.toFixed(1)}%</span>
+                        <span
+                          className="font-mono font-bold"
+                          style={{
+                            color:
+                              combined >= 70
+                                ? 'var(--green-700)'
+                                : combined >= 40
+                                  ? 'var(--accent)'
+                                  : 'var(--red-700)',
+                          }}
+                        >
+                          {combined.toFixed(1)}%
+                        </span>
                         <div className="w-20 h-1.5 rounded-full overflow-hidden" style={{ background: 'var(--ink-100)' }}>
                           <div className="h-full" style={{
-                            width: `${Math.min(100, score)}%`,
-                            background: score >= 70 ? 'var(--green-500)' : score >= 40 ? 'var(--amber-500)' : 'var(--red-500)',
+                            width: `${Math.min(100, combined)}%`,
+                            background: combined >= 70 ? 'var(--green-500)' : combined >= 40 ? 'var(--accent)' : 'var(--red-500)',
                           }} />
                         </div>
                       </div>

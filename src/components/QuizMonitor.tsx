@@ -29,13 +29,19 @@ interface MonitorState {
   };
 }
 
+interface EnrolledStudent {
+  id: string;
+  name: string;
+  email: string;
+}
+
 export default function QuizMonitor({
   sessionId,
-  totalEnrolled,
+  enrolledStudents,
   backHref,
 }: {
   sessionId: string;
-  totalEnrolled: number;
+  enrolledStudents: EnrolledStudent[];
   backHref: string;
 }) {
   const [state, setState] = useState<MonitorState | null>(null);
@@ -55,7 +61,6 @@ export default function QuizMonitor({
   useEffect(() => {
     fetchState();
     const loop = () => {
-      // 5-second polling for monitor — light load
       pollRef.current = setTimeout(async () => {
         await fetchState();
         loop();
@@ -91,12 +96,11 @@ export default function QuizMonitor({
   const startMs = quiz.starts_at ? new Date(quiz.starts_at).getTime() : 0;
   const endMs = quiz.ends_at ? new Date(quiz.ends_at).getTime() : 0;
 
-  // Compute per-student progress
-  const byStudent = new Map<
-    string,
-    { answered: number; correct: number }
-  >();
+  // Per-student stats — only count responses to THIS quiz's questions
+  const questionIdSet = new Set(monitor.questions.map((q) => q.id));
+  const byStudent = new Map<string, { answered: number; correct: number }>();
   for (const r of monitor.responses) {
+    if (!questionIdSet.has(r.question_id)) continue;
     const cur = byStudent.get(r.student_id) ?? { answered: 0, correct: 0 };
     cur.answered++;
     if (r.is_correct) cur.correct++;
@@ -119,6 +123,26 @@ export default function QuizMonitor({
     cur.total++;
     if (r.is_correct) cur.right++;
   }
+
+  // Per-student rows for the table, sorted by score desc, then by name
+  const studentRows = enrolledStudents
+    .map((s) => {
+      const stats = byStudent.get(s.id);
+      const answered = stats?.answered ?? 0;
+      const correct = stats?.correct ?? 0;
+      const pct = quiz.total > 0 ? Math.round((correct / quiz.total) * 100) : 0;
+      const status: 'not_started' | 'in_progress' | 'completed' =
+        answered === 0
+          ? 'not_started'
+          : answered >= quiz.total
+            ? 'completed'
+            : 'in_progress';
+      return { ...s, answered, correct, pct, status };
+    })
+    .sort((a, b) => {
+      if (b.correct !== a.correct) return b.correct - a.correct;
+      return a.name.toLowerCase().localeCompare(b.name.toLowerCase());
+    });
 
   return (
     <div className="space-y-5">
@@ -164,7 +188,7 @@ export default function QuizMonitor({
             <Users size={14} />
             <p className="eyebrow">Enrolled</p>
           </div>
-          <p className="stat-num">{totalEnrolled}</p>
+          <p className="stat-num">{enrolledStudents.length}</p>
         </div>
         <div className="card">
           <div className="flex items-center gap-2 mb-1" style={{ color: 'var(--ink-500)' }}>
@@ -191,6 +215,91 @@ export default function QuizMonitor({
         </div>
       </div>
 
+      {/* Per-student results table */}
+      <div className="card p-0 overflow-hidden table-wrap">
+        <div className="px-4 py-3" style={{ borderBottom: '1px solid var(--ink-200)' }}>
+          <p className="font-display font-semibold">Per-student results</p>
+          <p className="text-xs" style={{ color: 'var(--ink-500)' }}>
+            Sorted by correct answers · ranking refreshes every 5 seconds
+          </p>
+        </div>
+        <table className="table">
+          <thead>
+            <tr>
+              <th>Student</th>
+              <th>Status</th>
+              <th style={{ textAlign: 'right' }}>Answered</th>
+              <th style={{ textAlign: 'right' }}>Correct</th>
+              <th style={{ textAlign: 'right' }}>Score</th>
+            </tr>
+          </thead>
+          <tbody>
+            {studentRows.map((s) => (
+              <tr key={s.id}>
+                <td>
+                  <p className="font-medium">{s.name}</p>
+                  <p className="text-xs" style={{ color: 'var(--ink-500)' }}>
+                    {s.email}
+                  </p>
+                </td>
+                <td>
+                  {s.status === 'completed' && (
+                    <span
+                      className="pill"
+                      style={{
+                        background: 'var(--green-soft)',
+                        color: 'var(--green-700)',
+                      }}
+                    >
+                      Completed
+                    </span>
+                  )}
+                  {s.status === 'in_progress' && (
+                    <span
+                      className="pill"
+                      style={{
+                        background: 'var(--accent-soft)',
+                        color: 'var(--accent)',
+                      }}
+                    >
+                      In progress
+                    </span>
+                  )}
+                  {s.status === 'not_started' && (
+                    <span className="text-xs" style={{ color: 'var(--ink-500)' }}>
+                      Not started
+                    </span>
+                  )}
+                </td>
+                <td className="font-mono text-sm" style={{ textAlign: 'right' }}>
+                  {s.answered} / {quiz.total}
+                </td>
+                <td className="font-mono text-sm" style={{ textAlign: 'right' }}>
+                  {s.correct}
+                </td>
+                <td
+                  className="font-mono font-bold"
+                  style={{
+                    textAlign: 'right',
+                    color:
+                      s.pct >= 70
+                        ? 'var(--green-700)'
+                        : s.pct >= 40
+                          ? 'var(--accent)'
+                          : s.status === 'not_started'
+                            ? 'var(--ink-500)'
+                            : 'var(--red-700)',
+                  }}
+                >
+                  {s.status === 'not_started' ? '—' : `${s.pct}%`}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Per-question performance */}
       <div className="card">
         <p className="eyebrow mb-3">Per-question performance</p>
         <div className="space-y-3">
@@ -212,7 +321,10 @@ export default function QuizMonitor({
                     </span>
                     {q.question_text}
                   </p>
-                  <span className="font-mono text-xs whitespace-nowrap" style={{ color: 'var(--ink-500)' }}>
+                  <span
+                    className="font-mono text-xs whitespace-nowrap"
+                    style={{ color: 'var(--ink-500)' }}
+                  >
                     {stats?.right ?? 0}/{stats?.total ?? 0} right
                   </span>
                 </div>
@@ -237,6 +349,19 @@ export default function QuizMonitor({
             );
           })}
         </div>
+      </div>
+
+      <div
+        className="card text-xs"
+        style={{ background: 'var(--accent-soft)', color: 'var(--ink-700)' }}
+      >
+        <p>
+          <strong>Where does this score go?</strong> Each correct answer contributes
+          to the student&apos;s quiz score (% correct of total questions). The quiz
+          score is then weighted at <strong>5%</strong> in the combined leaderboard
+          (assignments contribute 95%). View the full leaderboard from the internship
+          performance page.
+        </p>
       </div>
     </div>
   );

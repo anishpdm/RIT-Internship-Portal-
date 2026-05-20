@@ -1,5 +1,5 @@
 import { notFound } from 'next/navigation';
-import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/server';
 import { requireRole } from '@/lib/auth';
 import QuizMonitor from '@/components/QuizMonitor';
 
@@ -11,32 +11,40 @@ export default async function AdminQuizMonitorPage({
   params: { id: string };
 }) {
   await requireRole(['admin', 'mentor']);
-  const supabase = createClient();
+  const admin = createAdminClient();
 
-  const { data: session } = await supabase
+  const { data: session } = await admin
     .from('sessions')
     .select('id, internship_id')
     .eq('id', params.id)
     .single();
   if (!session) notFound();
 
-  const { data: quiz } = await supabase
+  const { data: quiz } = await admin
     .from('quizzes')
     .select('id')
     .eq('session_id', session.id)
     .single();
   if (!quiz) notFound();
 
-  // Total enrolled students in this internship — for the monitor's denominator
-  const { count: totalEnrolled } = await supabase
+  // Fetch enrolled students with names — for the per-student breakdown table
+  const { data: enrolled } = await admin
     .from('enrollments')
-    .select('id', { count: 'exact', head: true })
+    .select('student_id, profiles:student_id (full_name, email)')
     .eq('internship_id', session.internship_id);
+
+  const enrolledStudents = (enrolled ?? [])
+    .map((e: any) => ({
+      id: e.student_id,
+      name: e.profiles?.full_name ?? e.profiles?.email ?? 'Unknown',
+      email: e.profiles?.email ?? '',
+    }))
+    .sort((a, b) => a.name.toLowerCase().localeCompare(b.name.toLowerCase()));
 
   return (
     <QuizMonitor
       sessionId={session.id}
-      totalEnrolled={totalEnrolled ?? 0}
+      enrolledStudents={enrolledStudents}
       backHref={`/admin/sessions/${session.id}/quiz`}
     />
   );

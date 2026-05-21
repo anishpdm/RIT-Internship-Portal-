@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import './globals.css';
 import RouteProgress from '@/components/RouteProgress';
+import { Analytics } from '@vercel/analytics/next';
 
 export const metadata: Metadata = {
   title: 'RIT Internship Portal',
@@ -31,6 +32,7 @@ export default function RootLayout({
       <body>
         <RouteProgress />
         {children}
+        <Analytics />
       </body>
     </html>
   );

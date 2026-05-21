@@ -24,7 +24,7 @@ export default async function MentorSessionsPage() {
     const { data } = await supabase
       .from('sessions')
       .select(
-        'id, title, session_type, status, scheduled_at, duration_minutes, internships:internship_id (title)',
+        'id, title, session_type, status, scheduled_at, duration_minutes, meeting_url, internships:internship_id (title)',
       )
       .in('internship_id', internshipIds)
       .order('scheduled_at', { ascending: false });
@@ -54,12 +54,18 @@ export default async function MentorSessionsPage() {
                 <th>Type</th>
                 <th>Scheduled</th>
                 <th>Status</th>
+                <th>Join</th>
                 <th></th>
               </tr>
             </thead>
             <tbody>
               {sessions.map((s) => {
                 const Icon = TYPE_ICON[s.session_type as keyof typeof TYPE_ICON];
+                const startsAt = new Date(s.scheduled_at).getTime();
+                const now = Date.now();
+                const endsAt = startsAt + (s.duration_minutes ?? 60) * 60000;
+                const isLive = now >= startsAt && now <= endsAt;
+                const isPast = now > endsAt;
                 return (
                   <tr key={s.id}>
                     <td>
@@ -75,9 +81,24 @@ export default async function MentorSessionsPage() {
                     </td>
                     <td className="text-sm">{formatDateTime(s.scheduled_at)}</td>
                     <td>
-                      <Pill tone={s.status === 'live' ? 'accent' : 'blue'}>
-                        {s.status}
+                      <Pill tone={isLive ? 'green' : isPast ? undefined : 'blue'}>
+                        {isLive ? '● live' : isPast ? 'past' : s.status}
                       </Pill>
+                    </td>
+                    <td>
+                      {s.meeting_url ? (
+                        <a
+                          href={s.meeting_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className={isLive ? 'btn btn-primary' : 'btn btn-secondary'}
+                          style={{ fontSize: '0.75rem', padding: '0.3rem 0.6rem' }}
+                        >
+                          <Video size={11} /> {isLive ? 'Join' : 'Link'}
+                        </a>
+                      ) : (
+                        <span className="text-xs" style={{ color: 'var(--ink-500)' }}>—</span>
+                      )}
                     </td>
                     <td>
                       <Link

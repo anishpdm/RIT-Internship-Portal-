@@ -7,6 +7,7 @@ import PrintButton from '@/components/PrintButton';
 import PrintHeader from '@/components/PrintHeader';
 import { HorizontalBarChart, DonutChart } from '@/components/Charts';
 import { ArrowLeft, Trophy, Users, TrendingUp, Calendar } from 'lucide-react';
+import { formatDateTime, computeRanks } from '@/lib/utils';
 
 export const dynamic = 'force-dynamic';
 
@@ -64,7 +65,7 @@ export default async function InternshipPerformancePage({
   }
 
   // Enrich every row with quiz score + combined (95% assignments + 5% quiz)
-  const rows = baseRows
+  const unsortedRows = baseRows
     .map((r: any) => {
       const quiz = quizMap.get(r.student_id);
       const quizPct = quiz?.score ?? 0;
@@ -80,6 +81,9 @@ export default async function InternshipPerformancePage({
     })
     // Re-sort by COMBINED instead of just assignment total — true ranking
     .sort((a: any, b: any) => b.combined - a.combined);
+
+  // Dense ranks so ties share same position number
+  const rows = computeRanks(unsortedRows, 'combined');
 
   // Per-student submitted (not necessarily graded) count
   const studentIds = (rows ?? []).map((r: any) => r.student_id);
@@ -236,10 +240,11 @@ export default async function InternshipPerformancePage({
               </tr>
             </thead>
             <tbody>
-              {rows.map((r: any, idx: number) => {
+              {rows.map((r: any) => {
                 const score = Number(r.total_score ?? 0);
                 const quizScore = Number(r.quiz_score ?? 0);
                 const combined = Number(r.combined ?? 0);
+                const rank = r.rank;
                 const attended = Number(r.attended_sessions ?? 0);
                 const submitted = submittedMap.get(r.student_id) ?? 0;
                 const graded = Number(r.graded_submissions ?? 0);
@@ -254,12 +259,20 @@ export default async function InternshipPerformancePage({
                 return (
                   <tr key={r.student_id}>
                     <td className="font-mono text-sm" style={{ color: 'var(--ink-500)' }}>
-                      {idx < 3 ? (
-                        <span style={{ color: 'var(--accent)' }}>
-                          <Trophy size={14} className="inline" /> {idx + 1}
+                      {rank === 1 ? (
+                        <span style={{ color: '#eab308' }}>
+                          <Trophy size={14} className="inline" /> 1
+                        </span>
+                      ) : rank === 2 ? (
+                        <span style={{ color: '#9ca3af' }}>
+                          <Trophy size={14} className="inline" /> 2
+                        </span>
+                      ) : rank === 3 ? (
+                        <span style={{ color: '#cd7f32' }}>
+                          <Trophy size={14} className="inline" /> 3
                         </span>
                       ) : (
-                        idx + 1
+                        rank
                       )}
                     </td>
                     <td>

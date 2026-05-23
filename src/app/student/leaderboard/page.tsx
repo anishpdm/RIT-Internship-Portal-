@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server';
 import { requireRole } from '@/lib/auth';
 import { PageHeader, Stat, EmptyState, Pill } from '@/components/ui';
 import { Trophy, Medal, Award, Crown, TrendingUp } from 'lucide-react';
+import { computeRanks } from '@/lib/utils';
 
 export const dynamic = 'force-dynamic';
 
@@ -157,12 +158,14 @@ export default async function StudentLeaderboardPage() {
             };
           });
 
-          // Re-sort by combined score
+          // Sort then compute proper dense ranks (ties share same position)
           rowsWithCombined.sort((a, b) => b.combined - a.combined);
+          const rankedRows = computeRanks(rowsWithCombined, 'combined');
 
-          const top10 = rowsWithCombined.slice(0, 10);
-          const myRank = rowsWithCombined.findIndex((r) => r.student_id === me.userId) + 1;
-          const myRow = rowsWithCombined.find((r) => r.student_id === me.userId);
+          const top10 = rankedRows.slice(0, 10);
+          const myRankedRow = rankedRows.find((r) => r.student_id === me.userId);
+          const myRank = myRankedRow?.rank ?? 0;
+          const myRow = myRankedRow;
           const toppers = assignmentToppers[i.id] ?? [];
 
           return (
@@ -236,8 +239,9 @@ export default async function StudentLeaderboardPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {top10.map((r, idx) => {
+                      {top10.map((r) => {
                         const isMe = r.student_id === me.userId;
+                        const rank = r.rank;
                         return (
                           <tr
                             key={r.student_id}
@@ -248,15 +252,15 @@ export default async function StudentLeaderboardPage() {
                             }
                           >
                             <td>
-                              {idx === 0 ? (
+                              {rank === 1 ? (
                                 <span style={{ color: '#eab308' }}>
                                   <Crown size={14} className="inline" /> 1
                                 </span>
-                              ) : idx === 1 ? (
+                              ) : rank === 2 ? (
                                 <span style={{ color: '#9ca3af' }}>
                                   <Medal size={14} className="inline" /> 2
                                 </span>
-                              ) : idx === 2 ? (
+                              ) : rank === 3 ? (
                                 <span style={{ color: '#cd7f32' }}>
                                   <Award size={14} className="inline" /> 3
                                 </span>
@@ -265,7 +269,7 @@ export default async function StudentLeaderboardPage() {
                                   className="font-mono text-sm"
                                   style={{ color: 'var(--ink-500)' }}
                                 >
-                                  {idx + 1}
+                                  {rank}
                                 </span>
                               )}
                             </td>

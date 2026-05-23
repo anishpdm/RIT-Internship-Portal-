@@ -5,9 +5,31 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-// IST is UTC+05:30 — always use Asia/Kolkata for display.
-// (Database storage stays in UTC via Postgres timestamptz, which is correct;
-// this just controls how we render times to the user.)
+/**
+ * Dense ranking — same score = same rank, no gaps.
+ *   Scores 90, 85, 85, 70  →  ranks 1, 2, 2, 3
+ * Rows MUST already be sorted descending by scoreKey.
+ */
+export function computeRanks<T extends Record<string, any>>(
+  rows: T[],
+  scoreKey: keyof T,
+): (T & { rank: number })[] {
+  let rank = 1;
+  let lastScore: number | null = null;
+  return rows.map((row, i) => {
+    const score = Number(row[scoreKey]);
+    if (i === 0) {
+      lastScore = score;
+      return { ...row, rank: 1 };
+    }
+    if (score !== lastScore) {
+      rank++;
+      lastScore = score;
+    }
+    return { ...row, rank };
+  });
+}
+
 const IST_TZ = 'Asia/Kolkata';
 
 export function formatDateTime(value: string | Date | null | undefined) {
@@ -31,7 +53,6 @@ export function formatDate(value: string | Date | null | undefined) {
   });
 }
 
-/** Just the time (e.g. "2:30 pm") — IST */
 export function formatTimeOnly(value: string | Date | null | undefined) {
   if (!value) return '—';
   const d = typeof value === 'string' ? new Date(value) : value;
@@ -57,21 +78,10 @@ export function relativeTime(value: string | Date | null | undefined) {
   return rtf.format(diffD, 'day');
 }
 
-// ─────────────────────────────────────────────────────────────────
-// datetime-local input helpers
-//
-// Browsers render <input type="datetime-local"> in the user's local TZ.
-// For users in India that's IST, but the value sent back is a NAÏVE string
-// like "2026-05-19T14:30" (no timezone). To store correctly, we must treat
-// the input as IST when converting to UTC for the DB.
-// ─────────────────────────────────────────────────────────────────
-
-/** Convert a UTC ISO string from the DB to the "YYYY-MM-DDTHH:MM" string that <input type="datetime-local"> expects, in IST. */
 export function isoToISTLocalInput(iso: string | null | undefined): string {
   if (!iso) return '';
   const d = new Date(iso);
   if (isNaN(d.getTime())) return '';
-  // Use en-CA which gives ISO-like YYYY-MM-DD; combine with hour/minute in IST
   const parts = new Intl.DateTimeFormat('en-CA', {
     timeZone: IST_TZ,
     year: 'numeric',
@@ -85,24 +95,17 @@ export function isoToISTLocalInput(iso: string | null | undefined): string {
   return `${get('year')}-${get('month')}-${get('day')}T${get('hour')}:${get('minute')}`;
 }
 
-/** Convert a naive datetime-local string ("YYYY-MM-DDTHH:MM") interpreted as IST into a UTC ISO string for the DB. */
 export function istLocalInputToISO(local: string): string | null {
   if (!local) return null;
-  // local looks like "2026-05-19T14:30"
   const match = local.match(
     /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?$/,
   );
   if (!match) return null;
   const [, y, mo, d, h, mi, s] = match;
-  // Build a Date from IST components: IST is UTC+5:30, so subtract 5h30m to get UTC
   const utcMs = Date.UTC(
-    Number(y),
-    Number(mo) - 1,
-    Number(d),
-    Number(h),
-    Number(mi),
-    Number(s ?? 0),
+    Number(y), Number(mo) - 1, Number(d),
+    Number(h), Number(mi), Number(s ?? 0),
   );
-  const istOffsetMs = (5 * 60 + 30) * 60 * 1000; // +05:30
+  const istOffsetMs = (5 * 60 + 30) * 60 * 1000;
   return new Date(utcMs - istOffsetMs).toISOString();
 }

@@ -163,6 +163,7 @@ export default async function StudentLeaderboardPage() {
           const rankedRows = computeRanks(rowsWithCombined, 'combined');
 
           const top10 = rankedRows.slice(0, 10);
+          const top5 = rankedRows.slice(0, 5);
           const myRankedRow = rankedRows.find((r) => r.student_id === me.userId);
           const myRank = myRankedRow?.rank ?? 0;
           const myRow = myRankedRow;
@@ -176,6 +177,103 @@ export default async function StudentLeaderboardPage() {
                   {rows.length} student{rows.length === 1 ? '' : 's'}
                 </Pill>
               </div>
+
+              {/* ── Top 5 podium ───────────────────────────────── */}
+              {top5.length > 0 && (
+                <div className="card mb-5" style={{
+                  background: 'linear-gradient(135deg, rgba(234,179,8,0.08) 0%, rgba(79,70,229,0.06) 100%)',
+                  borderColor: 'rgba(234,179,8,0.4)',
+                }}>
+                  <div className="flex items-center gap-2 mb-4">
+                    <Trophy size={16} style={{ color: '#eab308' }} />
+                    <p className="font-display font-bold text-base">Top 5</p>
+                    <span className="text-xs" style={{ color: 'var(--ink-500)' }}>— Current standings</span>
+                  </div>
+
+                  {/* Podium visual — positions 1/2/3 raised, 4/5 flat */}
+                  <div className="space-y-2">
+                    {top5.map((r, idx) => {
+                      const isMe = r.student_id === me.userId;
+                      const rank = r.rank;
+                      const medal =
+                        rank === 1
+                          ? { icon: '🥇', bg: 'linear-gradient(135deg,#fef3c7,#fde68a)', border: '#eab308', text: '#92400e', size: '1.1rem' }
+                          : rank === 2
+                          ? { icon: '🥈', bg: 'linear-gradient(135deg,#f1f5f9,#e2e8f0)', border: '#94a3b8', text: '#334155', size: '1rem' }
+                          : rank === 3
+                          ? { icon: '🥉', bg: 'linear-gradient(135deg,#fef3e2,#fed7aa)', border: '#f59e0b', text: '#78350f', size: '1rem' }
+                          : { icon: null,  bg: 'var(--paper)',  border: 'var(--ink-200)', text: 'var(--ink-900)', size: '0.9rem' };
+
+                      return (
+                        <div
+                          key={r.student_id}
+                          className="flex items-center gap-3 px-3 py-2.5 rounded-lg"
+                          style={{
+                            background: isMe
+                              ? 'var(--accent-soft)'
+                              : medal.bg,
+                            border: `1.5px solid ${isMe ? 'var(--accent)' : medal.border}`,
+                            transform: rank === 1 ? 'scale(1.01)' : 'scale(1)',
+                            transition: 'transform 200ms',
+                          }}
+                        >
+                          {/* Rank */}
+                          <div
+                            className="w-8 h-8 rounded-full flex items-center justify-center font-bold shrink-0"
+                            style={{
+                              background: isMe ? 'var(--accent)' : medal.border,
+                              color: isMe ? 'white' : rank <= 3 ? medal.text : 'white',
+                              fontSize: '0.8rem',
+                            }}
+                          >
+                            {medal.icon ?? rank}
+                          </div>
+
+                          {/* Name + level */}
+                          <div className="flex-1 min-w-0">
+                            <p
+                              className="font-display font-semibold truncate"
+                              style={{
+                                fontSize: medal.size,
+                                color: isMe ? 'var(--accent)' : medal.text,
+                              }}
+                            >
+                              {r.full_name ?? r.email ?? '—'}
+                              {isMe && (
+                                <span
+                                  className="ml-2 text-xs font-normal"
+                                  style={{ color: 'var(--accent)', opacity: 0.8 }}
+                                >
+                                  (you)
+                                </span>
+                              )}
+                            </p>
+                            <p className="text-xs" style={{ color: 'var(--ink-500)' }}>
+                              L{r.current_level} · {r.graded_submissions} graded
+                            </p>
+                          </div>
+
+                          {/* Score */}
+                          <div className="text-right shrink-0">
+                            <p
+                              className="font-display font-bold"
+                              style={{
+                                fontSize: rank === 1 ? '1.25rem' : '1.05rem',
+                                color: isMe ? 'var(--accent)' : rank === 1 ? '#92400e' : medal.text,
+                              }}
+                            >
+                              {r.combined.toFixed(2)}%
+                            </p>
+                            <p className="text-xs" style={{ color: 'var(--ink-500)' }}>
+                              A:{Number(r.total_score ?? 0).toFixed(0)}% Q:{r.quiz_score.toFixed(0)}%
+                            </p>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
 
               {/* My position card */}
               {myRow && (

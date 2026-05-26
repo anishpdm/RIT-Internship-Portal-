@@ -10,6 +10,7 @@ import { ArrowLeft, Trash2, ExternalLink } from 'lucide-react';
 import PrintButton from '@/components/PrintButton';
 import PrintHeader from '@/components/PrintHeader';
 import ConfirmDeleteButton from '@/components/ConfirmDeleteButton';
+import SubmissionBadges from '@/components/SubmissionBadges';
 
 export const dynamic = 'force-dynamic';
 
@@ -249,19 +250,35 @@ export default async function AssignmentDetailPage({
                       {s.profiles?.email}
                     </p>
                   </td>
-                  <td className="text-sm">{formatDateTime(s.submitted_at)}</td>
+                  <td className="text-sm">
+                    <p>{formatDateTime(s.submitted_at)}</p>
+                    {s.resubmission_count > 0 && s.first_submitted_at && (
+                      <p className="text-xs" style={{ color: 'var(--ink-500)' }}>
+                        first: {formatDateTime(s.first_submitted_at)}
+                      </p>
+                    )}
+                  </td>
                   <td>
-                    <Pill
-                      tone={
-                        s.status === 'graded'
-                          ? 'green'
-                          : s.status === 'returned'
-                            ? 'red'
-                            : 'blue'
-                      }
-                    >
-                      {s.status}
-                    </Pill>
+                    <div className="space-y-1">
+                      <Pill
+                        tone={
+                          s.status === 'graded'
+                            ? 'green'
+                            : s.status === 'returned'
+                              ? 'red'
+                              : 'blue'
+                        }
+                      >
+                        {s.status}
+                      </Pill>
+                      <SubmissionBadges
+                        submittedAt={s.submitted_at}
+                        firstSubmittedAt={s.first_submitted_at}
+                        dueAt={assignment.due_at}
+                        resubmissionCount={s.resubmission_count}
+                        size="sm"
+                      />
+                    </div>
                   </td>
                   <td className="font-mono text-sm">
                     {s.score != null ? `${s.score} / ${assignment.max_score}` : '—'}

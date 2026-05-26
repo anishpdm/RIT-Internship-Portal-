@@ -9,6 +9,7 @@ import { formatDateTime, relativeTime } from '@/lib/utils';
 import { ArrowLeft, ExternalLink, Github, AlertCircle } from 'lucide-react';
 import SubmissionForm from './SubmissionForm';
 import FeedbackForm from '@/components/FeedbackForm';
+import SubmissionBadges from '@/components/SubmissionBadges';
 
 export const dynamic = 'force-dynamic';
 
@@ -28,30 +29,36 @@ async function submitAssignment(formData: FormData) {
     redirect(`/student/assignments/${assignment_id}?error=empty`);
   }
 
-  // Upsert (one submission per student per assignment)
+  const now = new Date().toISOString();
+
+  // Fetch existing submission to track resubmissions
   const { data: existing } = await supabase
     .from('submissions')
-    .select('id')
+    .select('id, resubmission_count, first_submitted_at')
     .eq('assignment_id', assignment_id)
     .eq('student_id', me.userId)
     .maybeSingle();
 
   if (existing) {
+    // Resubmission — increment count, keep first_submitted_at
     await supabase
       .from('submissions')
       .update({
         github_url: github_url || null,
         file_url: file_url || null,
         notes: notes || null,
-        submitted_at: new Date().toISOString(),
+        submitted_at: now,
         status: 'submitted',
         score: null,
         feedback: null,
         evaluated_at: null,
         evaluated_by: null,
+        resubmission_count: ((existing.resubmission_count ?? 0) + 1),
+        first_submitted_at: existing.first_submitted_at ?? now,
       })
       .eq('id', existing.id);
   } else {
+    // First submission
     await supabase.from('submissions').insert({
       assignment_id,
       student_id: me.userId,
@@ -59,16 +66,22 @@ async function submitAssignment(formData: FormData) {
       file_url: file_url || null,
       notes: notes || null,
       status: 'submitted',
+      first_submitted_at: now,
+      resubmission_count: 0,
     });
   }
 
   await logAudit({
     actor_id: me.userId,
     actor_role: me.profile.role,
-    action: 'submission.create',
+    action: existing ? 'submission.resubmit' : 'submission.create',
     entity_type: 'assignment',
     entity_id: assignment_id,
-    details: { has_github: !!github_url, has_file: !!file_url },
+    details: {
+      has_github: !!github_url,
+      has_file: !!file_url,
+      resubmission: !!existing,
+    },
   });
 
   revalidatePath(`/student/assignments/${assignment_id}`);
@@ -242,19 +255,27 @@ export default async function StudentAssignmentDetail({
 
       {sub && (
         <div className="card mb-6">
-          <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
             <p className="eyebrow">Your last submission</p>
-            <Pill
-              tone={
-                sub.status === 'graded'
-                  ? 'green'
-                  : sub.status === 'returned'
-                    ? 'red'
-                    : 'blue'
-              }
-            >
-              {sub.status}
-            </Pill>
+            <div className="flex items-center gap-2 flex-wrap">
+              <SubmissionBadges
+                submittedAt={sub.submitted_at}
+                firstSubmittedAt={sub.first_submitted_at}
+                dueAt={assignment.due_at}
+                resubmissionCount={sub.resubmission_count}
+              />
+              <Pill
+                tone={
+                  sub.status === 'graded'
+                    ? 'green'
+                    : sub.status === 'returned'
+                      ? 'red'
+                      : 'blue'
+                }
+              >
+                {sub.status}
+              </Pill>
+            </div>
           </div>
           {sub.score != null && (
             <p className="font-display text-3xl mb-3">
@@ -295,7 +316,10 @@ export default async function StudentAssignmentDetail({
             </div>
           )}
           <p className="text-xs mt-4" style={{ color: 'var(--ink-500)' }}>
-            submitted {formatDateTime(sub.submitted_at)}
+            {sub.resubmission_count > 0 && sub.first_submitted_at && (
+              <>first submitted {formatDateTime(sub.first_submitted_at)} · </>
+            )}
+            last submitted {formatDateTime(sub.submitted_at)}
           </p>
         </div>
       )}

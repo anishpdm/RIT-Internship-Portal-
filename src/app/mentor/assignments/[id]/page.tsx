@@ -7,6 +7,7 @@ import { logAudit } from '@/lib/audit';
 import { PageHeader, Pill, EmptyState } from '@/components/ui';
 import { formatDateTime } from '@/lib/utils';
 import { ArrowLeft, Trash2, ExternalLink } from 'lucide-react';
+import SubmissionBadges from '@/components/SubmissionBadges';
 import PrintButton from '@/components/PrintButton';
 import PrintHeader from '@/components/PrintHeader';
 import ConfirmDeleteButton from '@/components/ConfirmDeleteButton';
@@ -231,8 +232,28 @@ export default async function MentorAssignmentDetailPage({ params }: { params: {
                     <p className="font-medium">{s.profiles?.full_name ?? '—'}</p>
                     <p className="text-xs" style={{ color: 'var(--ink-500)' }}>{s.profiles?.email}</p>
                   </td>
-                  <td className="text-sm">{formatDateTime(s.submitted_at)}</td>
-                  <td><Pill tone={s.status === 'graded' ? 'green' : s.status === 'returned' ? 'red' : 'blue'}>{s.status}</Pill></td>
+                  <td className="text-sm">
+                    <p>{formatDateTime(s.submitted_at)}</p>
+                    {s.resubmission_count > 0 && s.first_submitted_at && (
+                      <p className="text-xs" style={{ color: 'var(--ink-500)' }}>
+                        first: {formatDateTime(s.first_submitted_at)}
+                      </p>
+                    )}
+                  </td>
+                  <td>
+                    <div className="space-y-1">
+                      <Pill tone={s.status === 'graded' ? 'green' : s.status === 'returned' ? 'red' : 'blue'}>
+                        {s.status}
+                      </Pill>
+                      <SubmissionBadges
+                        submittedAt={s.submitted_at}
+                        firstSubmittedAt={s.first_submitted_at}
+                        dueAt={assignment.due_at}
+                        resubmissionCount={s.resubmission_count}
+                        size="sm"
+                      />
+                    </div>
+                  </td>
                   <td className="font-mono text-sm">{s.score != null ? `${s.score} / ${assignment.max_score}` : '—'}</td>
                   <td className="text-sm">
                     {s.evaluated_by ? (

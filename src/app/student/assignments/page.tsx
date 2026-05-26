@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server';
 import { requireRole } from '@/lib/auth';
 import { PageHeader, Pill, EmptyState } from '@/components/ui';
 import { formatDateTime, relativeTime } from '@/lib/utils';
+import SubmissionBadges from '@/components/SubmissionBadges';
 
 export const dynamic = 'force-dynamic';
 
@@ -32,7 +33,7 @@ export default async function StudentAssignmentsPage() {
   const [mySubsRes, myFeedbackRes] = await Promise.all([
     supabase
       .from('submissions')
-      .select('assignment_id, status, score, submitted_at')
+      .select('assignment_id, status, score, submitted_at, first_submitted_at, resubmission_count')
       .eq('student_id', me.userId),
     supabase
       .from('assignment_feedback')
@@ -102,32 +103,41 @@ export default async function StudentAssignmentsPage() {
                     </td>
                     <td>
                       {sub ? (
-                        <>
-                          <Pill
-                            tone={
-                              sub.status === 'graded'
-                                ? 'green'
-                                : sub.status === 'returned'
-                                  ? 'red'
-                                  : 'blue'
-                            }
-                          >
-                            {sub.status}
-                          </Pill>
-                          {!feedbackGivenSet.has(a.id) && (
-                            <span
-                              className="pill ml-1"
-                              style={{
-                                background: 'var(--red-soft)',
-                                color: 'var(--red-700)',
-                                fontWeight: 600,
-                                fontSize: '0.65rem',
-                              }}
+                        <div className="space-y-1.5">
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <Pill
+                              tone={
+                                sub.status === 'graded'
+                                  ? 'green'
+                                  : sub.status === 'returned'
+                                    ? 'red'
+                                    : 'blue'
+                              }
                             >
-                              ⚠ feedback pending
-                            </span>
-                          )}
-                        </>
+                              {sub.status}
+                            </Pill>
+                            {!feedbackGivenSet.has(a.id) && (
+                              <span
+                                className="pill"
+                                style={{
+                                  background: 'var(--red-soft)',
+                                  color: 'var(--red-700)',
+                                  fontWeight: 600,
+                                  fontSize: '0.65rem',
+                                }}
+                              >
+                                ⚠ feedback pending
+                              </span>
+                            )}
+                          </div>
+                          <SubmissionBadges
+                            submittedAt={sub.submitted_at}
+                            firstSubmittedAt={sub.first_submitted_at}
+                            dueAt={a.due_at}
+                            resubmissionCount={sub.resubmission_count}
+                            size="sm"
+                          />
+                        </div>
                       ) : (
                         <Pill tone="accent">pending</Pill>
                       )}

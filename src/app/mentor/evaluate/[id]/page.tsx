@@ -39,33 +39,49 @@ async function gradeSubmission(formData: FormData) {
 
   if (error || !updated) redirect(`/mentor/evaluate/${id}?error=db`);
 
-  // Recompute total_score for that enrollment (weighted average of graded subs)
+  // Recompute total_score for the enrollment.
+  // FIX: denominator = ALL assignments in the internship (unsubmitted/ungraded = 0).
+  // This matches the v_internship_leaderboard view formula.
   if (status === 'graded') {
-    const { data: graded } = await supabase
-      .from('submissions')
-      .select('score, assignments:assignment_id (weight, max_score, internship_id)')
-      .eq('student_id', updated.student_id)
-      .eq('status', 'graded');
+    const internship_id = (updated as any).assignments?.internship_id;
+    if (internship_id) {
+      // Fetch ALL assignments for this internship
+      const { data: allAssignments } = await supabase
+        .from('assignments')
+        .select('id, weight, max_score')
+        .eq('internship_id', internship_id);
 
-    if (graded) {
-      const relevant = graded.filter(
-        (g: any) => g.assignments?.internship_id === (updated as any).assignments?.internship_id,
-      );
-      let weightedSum = 0;
-      let totalWeight = 0;
-      for (const g of relevant) {
-        const a: any = g.assignments;
-        if (!a || g.score == null || !a.max_score) continue;
-        const pct = (Number(g.score) / Number(a.max_score)) * 100;
-        weightedSum += pct * Number(a.weight ?? 1);
-        totalWeight += Number(a.weight ?? 1);
+      // Fetch this student's graded submissions for this internship
+      const { data: gradedSubs } = await supabase
+        .from('submissions')
+        .select('assignment_id, score')
+        .eq('student_id', updated.student_id)
+        .eq('status', 'graded');
+
+      const gradedMap = new Map<string, number>();
+      for (const s of gradedSubs ?? []) {
+        if ((s as any).score != null) gradedMap.set(s.assignment_id, Number((s as any).score));
       }
-      const total = totalWeight ? weightedSum / totalWeight : 0;
+
+      let totalWeight = 0;
+      let earnedWeight = 0;
+      for (const a of allAssignments ?? []) {
+        const weight = Number((a as any).weight ?? 1);
+        const maxScore = Number((a as any).max_score ?? 100);
+        totalWeight += weight;
+        const studentScore = gradedMap.get(a.id);
+        if (studentScore != null && maxScore > 0) {
+          earnedWeight += (studentScore / maxScore) * 100 * weight;
+        }
+        // else: 0 — not submitted or not graded yet
+      }
+      const total = totalWeight > 0 ? earnedWeight / totalWeight : 0;
+
       await supabase
         .from('enrollments')
         .update({ total_score: total })
         .eq('student_id', updated.student_id)
-        .eq('internship_id', (updated as any).assignments?.internship_id);
+        .eq('internship_id', internship_id);
     }
   }
 

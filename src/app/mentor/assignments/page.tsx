@@ -76,12 +76,21 @@ export default async function MentorAssignmentsPage() {
                   <td className="font-mono text-xs">{a.max_score}</td>
                   <td className="text-sm">{formatDateTime(a.due_at)}</td>
                   <td>
-                    <Link
-                      href={`/mentor/assignments/${a.id}`}
-                      className="text-sm link"
-                    >
-                      Open →
-                    </Link>
+                    <div className="flex items-center gap-3">
+                      <Link
+                        href={`/mentor/assignments/${a.id}`}
+                        className="text-sm link"
+                      >
+                        Open →
+                      </Link>
+                      <Link
+                        href={`/mentor/assignments/${a.id}/edit`}
+                        className="text-sm link"
+                        style={{ color: 'var(--ink-500)' }}
+                      >
+                        Edit
+                      </Link>
+                    </div>
                   </td>
                 </tr>
               ))}

@@ -6,7 +6,7 @@ import { requireRole } from '@/lib/auth';
 import { logAudit } from '@/lib/audit';
 import { PageHeader, Pill, EmptyState } from '@/components/ui';
 import { formatDateTime } from '@/lib/utils';
-import { ArrowLeft, Trash2, ExternalLink } from 'lucide-react';
+import { ArrowLeft, Trash2, ExternalLink, Pencil } from 'lucide-react';
 import SubmissionBadges from '@/components/SubmissionBadges';
 import PrintButton from '@/components/PrintButton';
 import PrintHeader from '@/components/PrintHeader';
@@ -127,6 +127,12 @@ export default async function MentorAssignmentDetailPage({ params }: { params: {
         subtitle={`${assignment.kind} · max ${assignment.max_score} · weight ${assignment.weight}`}
         actions={
           <>
+            <Link
+              href={`/mentor/assignments/${params.id}/edit`}
+              className="btn btn-secondary"
+            >
+              <Pencil size={14} /> Edit
+            </Link>
             <PrintButton label="Print" />
             <Link href="/mentor/assignments" className="btn btn-ghost">
               <ArrowLeft size={16} /> Back

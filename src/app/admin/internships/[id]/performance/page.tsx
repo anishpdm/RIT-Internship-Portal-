@@ -329,7 +329,7 @@ export default async function InternshipPerformancePage({
                                   : 'var(--red-700)',
                           }}
                         >
-                          {combined.toFixed(1)}%
+                          {combined.toFixed(2)}%
                         </span>
                         <div
                           className="w-20 h-1.5 rounded-full overflow-hidden"

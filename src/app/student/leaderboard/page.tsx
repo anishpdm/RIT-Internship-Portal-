@@ -209,7 +209,7 @@ export default async function StudentLeaderboardPage() {
                     </div>
                     <div className="text-right">
                       <p className="stat-num" style={{ fontSize: '1.75rem' }}>
-                        {myRow.combined.toFixed(1)}%
+                        {myRow.combined.toFixed(2)}%
                       </p>
                       <p className="stat-label">combined score</p>
                       <p className="text-xs mt-1 font-mono" style={{ color: 'var(--ink-500)' }}>
@@ -305,7 +305,7 @@ export default async function StudentLeaderboardPage() {
                               )}
                             </td>
                             <td className="font-mono font-semibold">
-                              {r.combined.toFixed(1)}%
+                              {r.combined.toFixed(2)}%
                             </td>
                           </tr>
                         );

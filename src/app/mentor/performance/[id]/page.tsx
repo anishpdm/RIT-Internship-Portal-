@@ -234,38 +234,38 @@ export default async function MentorInternshipPerformancePage({
                 const attended = Number(r.attended_sessions ?? 0);
                 const submitted = submittedMap.get(r.student_id) ?? 0;
                 const graded = Number(r.graded_submissions ?? 0);
-                const attendancePct =
-                  totalSessions && totalSessions > 0
-                    ? ((attended / totalSessions) * 100).toFixed(0)
-                    : '0';
-                const submissionPct =
-                  totalAssignments && totalAssignments > 0
-                    ? ((submitted / totalAssignments) * 100).toFixed(0)
-                    : '0';
+                const attendancePct = totalSessions && totalSessions > 0 ? ((attended / totalSessions) * 100).toFixed(0) : '0';
+                const submissionPct = totalAssignments && totalAssignments > 0 ? ((submitted / totalAssignments) * 100).toFixed(0) : '0';
+                const initials = (r.full_name ?? r.email ?? '?').split(' ').map((w: string) => w[0]).slice(0, 2).join('').toUpperCase();
+                const AVATAR_COLORS = ['#8B5CF6','#06B6D4','#10B981','#F59E0B','#EF4444','#3B82F6','#EC4899','#14B8A6','#F97316','#6366F1'];
+                const avatarColor = AVATAR_COLORS[rank % AVATAR_COLORS.length];
+                const scoreColor = combined >= 90 ? '#10B981' : combined >= 75 ? '#3B82F6' : combined >= 50 ? '#F59E0B' : '#EF4444';
+                const rankBadge = rank === 1
+                  ? { bg: 'linear-gradient(135deg,#fbbf24,#f59e0b)', color: 'white', label: '🥇' }
+                  : rank === 2
+                  ? { bg: 'linear-gradient(135deg,#94a3b8,#64748b)', color: 'white', label: '🥈' }
+                  : rank === 3
+                  ? { bg: 'linear-gradient(135deg,#f97316,#ea580c)', color: 'white', label: '🥉' }
+                  : { bg: 'var(--ink-100)', color: 'var(--ink-600)', label: String(rank) };
                 return (
                   <tr key={r.student_id}>
-                    <td className="font-mono text-sm" style={{ color: 'var(--ink-500)' }}>
-                      {rank === 1 ? (
-                        <span style={{ color: '#eab308' }}>
-                          <Trophy size={14} className="inline" /> 1
-                        </span>
-                      ) : rank === 2 ? (
-                        <span style={{ color: '#9ca3af' }}>
-                          <Trophy size={14} className="inline" /> 2
-                        </span>
-                      ) : rank === 3 ? (
-                        <span style={{ color: '#cd7f32' }}>
-                          <Trophy size={14} className="inline" /> 3
-                        </span>
-                      ) : (
-                        rank
-                      )}
+                    <td style={{ padding: '10px 12px', width: 56 }}>
+                      <div className="w-8 h-8 rounded-lg flex items-center justify-center font-bold text-xs"
+                        style={{ background: rankBadge.bg, color: rankBadge.color }}>
+                        {rank <= 3 ? rankBadge.label : rank}
+                      </div>
                     </td>
                     <td>
-                      <Link href={`/mentor/students/${r.student_id}`} className="link font-medium">
-                        {r.full_name ?? '—'}
-                      </Link>
-                      <p className="text-xs" style={{ color: 'var(--ink-500)' }}>{r.email}</p>
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-xs shrink-0"
+                          style={{ background: avatarColor, boxShadow: `0 2px 8px ${avatarColor}55` }}>
+                          {initials}
+                        </div>
+                        <div>
+                          <Link href={`/mentor/students/${r.student_id}`} className="link font-medium">{r.full_name ?? '—'}</Link>
+                          <p className="text-xs" style={{ color: 'var(--ink-500)' }}>{r.email}</p>
+                        </div>
+                      </div>
                     </td>
                     <td className="font-mono text-xs">L{r.current_level}</td>
                     <td>

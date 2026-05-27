@@ -171,239 +171,365 @@ export default async function StudentLeaderboardPage() {
 
           return (
             <section key={i.id}>
-              <div className="flex items-baseline justify-between mb-4 flex-wrap gap-2">
+              {/* ── Section header ──────────────────────────────── */}
+              <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
                 <h2 className="font-display text-2xl font-bold">{i.title}</h2>
-                <Pill tone="accent">
-                  {rows.length} student{rows.length === 1 ? '' : 's'}
-                </Pill>
+                <span
+                  className="px-3 py-1 rounded-full text-xs font-semibold"
+                  style={{ background: 'var(--accent-soft)', color: 'var(--accent)' }}
+                >
+                  {rows.length} students
+                </span>
               </div>
 
-              {/* ── Top 5 podium ───────────────────────────────── */}
-              {top5.length > 0 && (
-                <div className="card mb-5" style={{
-                  background: 'linear-gradient(135deg, rgba(234,179,8,0.08) 0%, rgba(79,70,229,0.06) 100%)',
-                  borderColor: 'rgba(234,179,8,0.4)',
-                }}>
-                  <div className="flex items-center gap-2 mb-4">
-                    <Trophy size={16} style={{ color: '#eab308' }} />
-                    <p className="font-display font-bold text-base">Top 5</p>
-                    <span className="text-xs" style={{ color: 'var(--ink-500)' }}>— Current standings</span>
-                  </div>
+              {/* ── PODIUM — top 3 ──────────────────────────────── */}
+              {top5.length > 0 && (() => {
+                const first = top5.find(r => r.rank === 1);
+                const second = top5.find(r => r.rank === 2);
+                const third = top5.find(r => r.rank === 3);
+                const fourth = top5.find(r => r.rank === 4);
+                const fifth = top5.find(r => r.rank === 5);
 
-                  {/* Podium visual — positions 1/2/3 raised, 4/5 flat */}
-                  <div className="space-y-2">
-                    {top5.map((r, idx) => {
-                      const isMe = r.student_id === me.userId;
-                      const rank = r.rank;
-                      const medal =
-                        rank === 1
-                          ? { icon: '🥇', bg: 'linear-gradient(135deg,#fef3c7,#fde68a)', border: '#eab308', text: '#92400e', size: '1.1rem' }
-                          : rank === 2
-                          ? { icon: '🥈', bg: 'linear-gradient(135deg,#f1f5f9,#e2e8f0)', border: '#94a3b8', text: '#334155', size: '1rem' }
-                          : rank === 3
-                          ? { icon: '🥉', bg: 'linear-gradient(135deg,#fef3e2,#fed7aa)', border: '#f59e0b', text: '#78350f', size: '1rem' }
-                          : { icon: null,  bg: 'var(--paper)',  border: 'var(--ink-200)', text: 'var(--ink-900)', size: '0.9rem' };
+                const initials = (name?: string | null) => {
+                  if (!name) return '?';
+                  return name.split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase();
+                };
 
-                      return (
+                const PodiumCard = ({
+                  row, pos, height, accentBg, accentText, border, crownColor, label,
+                }: {
+                  row?: typeof top5[0]; pos: number; height: number;
+                  accentBg: string; accentText: string; border: string;
+                  crownColor: string; label: string;
+                }) => {
+                  if (!row) return (
+                    <div style={{ flex: 1 }}>
+                      <div
+                        className="rounded-xl flex items-center justify-center"
+                        style={{ height, background: 'var(--ink-100)', border: '2px dashed var(--ink-200)' }}
+                      >
+                        <span className="text-xs" style={{ color: 'var(--ink-400)' }}>—</span>
+                      </div>
+                    </div>
+                  );
+                  const isMe = row.student_id === me.userId;
+                  return (
+                    <div style={{ flex: pos === 1 ? 1.15 : 1, display: 'flex', flexDirection: 'column' }}>
+                      {/* Avatar + name float above podium */}
+                      <div className="flex flex-col items-center mb-2 px-1">
                         <div
-                          key={r.student_id}
-                          className="flex items-center gap-3 px-3 py-2.5 rounded-lg"
+                          className="rounded-full flex items-center justify-center font-bold mb-1.5"
                           style={{
+                            width: pos === 1 ? 56 : 44,
+                            height: pos === 1 ? 56 : 44,
                             background: isMe
-                              ? 'var(--accent-soft)'
-                              : medal.bg,
-                            border: `1.5px solid ${isMe ? 'var(--accent)' : medal.border}`,
-                            transform: rank === 1 ? 'scale(1.01)' : 'scale(1)',
-                            transition: 'transform 200ms',
+                              ? 'linear-gradient(135deg, var(--accent), #818cf8)'
+                              : accentBg,
+                            color: accentText,
+                            fontSize: pos === 1 ? '1.1rem' : '0.85rem',
+                            boxShadow: `0 4px 14px ${border}66`,
                           }}
                         >
-                          {/* Rank */}
+                          {initials(row.full_name ?? row.email)}
+                        </div>
+                        <p
+                          className="font-display font-bold text-center truncate w-full px-1"
+                          style={{
+                            fontSize: pos === 1 ? '0.875rem' : '0.78rem',
+                            color: isMe ? 'var(--accent)' : 'var(--ink-900)',
+                          }}
+                        >
+                          {(row.full_name ?? row.email ?? '—').split(' ')[0]}
+                          {isMe && <span style={{ color: 'var(--accent)', fontSize:'0.65rem' }}> ★</span>}
+                        </p>
+                        <p className="font-display font-bold" style={{ color: crownColor, fontSize: pos === 1 ? '1.1rem' : '0.95rem' }}>
+                          {row.combined.toFixed(2)}%
+                        </p>
+                      </div>
+                      {/* Podium block */}
+                      <div
+                        className="rounded-t-xl flex flex-col items-center justify-start pt-3 relative"
+                        style={{
+                          height,
+                          background: isMe
+                            ? 'linear-gradient(180deg, var(--accent-soft), rgba(79,70,229,0.06))'
+                            : accentBg.replace('linear-gradient', 'linear-gradient').replace('135deg', '180deg'),
+                          border: `2px solid ${isMe ? 'var(--accent)' : border}`,
+                          borderBottom: 'none',
+                        }}
+                      >
+                        <span style={{ fontSize: pos === 1 ? '2rem' : '1.6rem' }}>{label}</span>
+                        <span
+                          className="font-mono font-bold"
+                          style={{ color: isMe ? 'var(--accent)' : accentText, fontSize: '0.75rem', marginTop: 2 }}
+                        >
+                          #{pos}
+                        </span>
+                        <p className="text-xs mt-1 text-center px-1" style={{ color: isMe ? 'var(--accent)' : accentText, opacity: 0.75 }}>
+                          A:{Number(row.total_score ?? 0).toFixed(0)}% Q:{row.quiz_score.toFixed(0)}%
+                        </p>
+                      </div>
+                    </div>
+                  );
+                };
+
+                return (
+                  <div className="mb-5">
+                    {/* 3-step podium */}
+                    <div className="flex items-end gap-2 mb-3" style={{ height: 260 }}>
+                      <PodiumCard row={second} pos={2} height={130}
+                        accentBg="linear-gradient(180deg,#f1f5f9,#e2e8f0)" accentText="#475569"
+                        border="#94a3b8" crownColor="#64748b" label="🥈" />
+                      <PodiumCard row={first} pos={1} height={165}
+                        accentBg="linear-gradient(180deg,#fef9c3,#fef08a)" accentText="#92400e"
+                        border="#fbbf24" crownColor="#d97706" label="🥇" />
+                      <PodiumCard row={third} pos={3} height={105}
+                        accentBg="linear-gradient(180deg,#fff7ed,#fed7aa)" accentText="#7c2d12"
+                        border="#f97316" crownColor="#ea580c" label="🥉" />
+                    </div>
+
+                    {/* 4th and 5th — horizontal */}
+                    {(fourth || fifth) && (
+                      <div className="grid grid-cols-2 gap-2">
+                        {[fourth, fifth].filter(Boolean).map((r) => r && (
                           <div
-                            className="w-8 h-8 rounded-full flex items-center justify-center font-bold shrink-0"
+                            key={r.student_id}
+                            className="flex items-center gap-3 px-3 py-2.5 rounded-xl"
                             style={{
-                              background: isMe ? 'var(--accent)' : medal.border,
-                              color: isMe ? 'white' : rank <= 3 ? medal.text : 'white',
-                              fontSize: '0.8rem',
+                              background: r.student_id === me.userId ? 'var(--accent-soft)' : 'var(--ink-50, #f8fafc)',
+                              border: `1.5px solid ${r.student_id === me.userId ? 'var(--accent)' : 'var(--ink-200)'}`,
                             }}
                           >
-                            {medal.icon ?? rank}
-                          </div>
-
-                          {/* Name + level */}
-                          <div className="flex-1 min-w-0">
-                            <p
-                              className="font-display font-semibold truncate"
+                            <div
+                              className="w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs shrink-0"
                               style={{
-                                fontSize: medal.size,
-                                color: isMe ? 'var(--accent)' : medal.text,
+                                background: r.student_id === me.userId ? 'var(--accent)' : 'var(--ink-200)',
+                                color: r.student_id === me.userId ? 'white' : 'var(--ink-600)',
                               }}
                             >
-                              {r.full_name ?? r.email ?? '—'}
-                              {isMe && (
-                                <span
-                                  className="ml-2 text-xs font-normal"
-                                  style={{ color: 'var(--accent)', opacity: 0.8 }}
-                                >
-                                  (you)
-                                </span>
-                              )}
-                            </p>
-                            <p className="text-xs" style={{ color: 'var(--ink-500)' }}>
-                              L{r.current_level} · {r.graded_submissions} graded
-                            </p>
+                              #{r.rank}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="font-semibold text-sm truncate">
+                                {(r.full_name ?? r.email ?? '—').split(' ')[0]}
+                                {r.student_id === me.userId && <span className="text-xs ml-1" style={{ color: 'var(--accent)' }}>★</span>}
+                              </p>
+                            </div>
+                            <span className="font-display font-bold text-sm">{r.combined.toFixed(2)}%</span>
                           </div>
-
-                          {/* Score */}
-                          <div className="text-right shrink-0">
-                            <p
-                              className="font-display font-bold"
-                              style={{
-                                fontSize: rank === 1 ? '1.25rem' : '1.05rem',
-                                color: isMe ? 'var(--accent)' : rank === 1 ? '#92400e' : medal.text,
-                              }}
-                            >
-                              {r.combined.toFixed(2)}%
-                            </p>
-                            <p className="text-xs" style={{ color: 'var(--ink-500)' }}>
-                              A:{Number(r.total_score ?? 0).toFixed(0)}% Q:{r.quiz_score.toFixed(0)}%
-                            </p>
-                          </div>
-                        </div>
-                      );
-                    })}
+                        ))}
+                      </div>
+                    )}
                   </div>
-                </div>
-              )}
+                );
+              })()}
 
-              {/* My position card */}
+              {/* ── YOUR RANK card ───────────────────────────────── */}
               {myRow && (
                 <div
-                  className="card mb-5"
+                  className="rounded-2xl mb-5 p-4"
                   style={{
-                    background:
-                      'linear-gradient(135deg, var(--accent-soft) 0%, rgba(79, 70, 229, 0.04) 100%)',
-                    borderColor: 'var(--accent)',
+                    background: 'linear-gradient(135deg, var(--accent) 0%, #818cf8 60%, #06b6d4 100%)',
+                    color: 'white',
+                    boxShadow: '0 8px 32px rgba(79,70,229,0.25)',
                   }}
                 >
                   <div className="flex items-center justify-between gap-4 flex-wrap">
                     <div className="flex items-center gap-3">
                       <div
-                        className="w-12 h-12 rounded-full flex items-center justify-center font-bold text-lg"
-                        style={{
-                          background:
-                            'linear-gradient(135deg, var(--accent) 0%, #818cf8 100%)',
-                          color: 'white',
-                        }}
+                        className="w-14 h-14 rounded-full flex items-center justify-center font-bold text-xl"
+                        style={{ background: 'rgba(255,255,255,0.2)', backdropFilter: 'blur(4px)' }}
                       >
                         #{myRank || '—'}
                       </div>
                       <div>
-                        <p className="font-display font-semibold">Your rank</p>
-                        <p className="text-xs" style={{ color: 'var(--ink-500)' }}>
-                          Level {myRow.current_level} · {myRow.graded_submissions} graded ·{' '}
-                          {myRow.attended_sessions} sessions attended
+                        <p className="font-display font-bold text-lg opacity-95">Your rank</p>
+                        <p className="text-xs opacity-70">
+                          Level {myRow.current_level} · {myRow.graded_submissions} graded · {myRow.attended_sessions} sessions
                         </p>
                       </div>
                     </div>
                     <div className="text-right">
-                      <p className="stat-num" style={{ fontSize: '1.75rem' }}>
+                      <p className="font-display font-bold" style={{ fontSize: '2rem', lineHeight: 1 }}>
                         {myRow.combined.toFixed(2)}%
                       </p>
-                      <p className="stat-label">combined score</p>
-                      <p className="text-xs mt-1 font-mono" style={{ color: 'var(--ink-500)' }}>
-                        Assignments {Number(myRow.total_score ?? 0).toFixed(0)}% · Quiz {myRow.quiz_score.toFixed(0)}%
-                      </p>
+                      <p className="text-xs opacity-70 mt-1">combined score</p>
+                      <div className="flex gap-3 justify-end mt-2">
+                        <span
+                          className="text-xs px-2 py-0.5 rounded-full font-semibold"
+                          style={{ background: 'rgba(255,255,255,0.2)' }}
+                        >
+                          A: {Number(myRow.total_score ?? 0).toFixed(0)}%
+                        </span>
+                        <span
+                          className="text-xs px-2 py-0.5 rounded-full font-semibold"
+                          style={{ background: 'rgba(255,255,255,0.2)' }}
+                        >
+                          Q: {myRow.quiz_score.toFixed(0)}%
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                  {/* Mini score bar */}
+                  <div className="mt-3">
+                    <div className="h-1.5 rounded-full" style={{ background: 'rgba(255,255,255,0.2)' }}>
+                      <div
+                        className="h-full rounded-full"
+                        style={{
+                          width: `${Math.min(100, myRow.combined)}%`,
+                          background: 'rgba(255,255,255,0.85)',
+                          transition: 'width 1s ease',
+                        }}
+                      />
                     </div>
                   </div>
                 </div>
               )}
 
-              {/* Top 10 */}
-              <h3 className="font-display text-lg font-semibold mb-3 flex items-center gap-2">
-                <Trophy size={16} style={{ color: 'var(--accent)' }} /> Top 10 overall
-              </h3>
-
+              {/* ── FULL TABLE ───────────────────────────────────── */}
+              <div className="flex items-center gap-2 mb-3">
+                <TrendingUp size={16} style={{ color: 'var(--accent)' }} />
+                <h3 className="font-display text-lg font-semibold">Full ranking</h3>
+              </div>
               {top10.length > 0 ? (
-                <div className="card p-0 overflow-hidden table-wrap mb-8">
-                  <table className="table">
+                <div
+                  className="rounded-2xl overflow-hidden mb-8"
+                  style={{ border: '1.5px solid var(--ink-200)', boxShadow: '0 4px 20px rgba(0,0,0,0.06)' }}
+                >
+                  <table className="table" style={{ borderCollapse: 'separate', borderSpacing: 0 }}>
                     <thead>
-                      <tr>
-                        <th style={{ width: 60 }}>Rank</th>
-                        <th>Student</th>
-                        <th>Level</th>
-                        <th>Assignments</th>
-                        <th>Quiz</th>
-                        <th>Combined</th>
+                      <tr style={{ background: 'var(--ink-900)' }}>
+                        {['#', 'Student', 'Assignments', 'Quiz', 'Combined'].map((h, hi) => (
+                          <th
+                            key={h}
+                            style={{
+                              color: 'rgba(255,255,255,0.7)',
+                              fontWeight: 600,
+                              fontSize: '0.7rem',
+                              letterSpacing: '0.08em',
+                              textTransform: 'uppercase',
+                              padding: hi === 0 ? '10px 12px' : '10px 16px',
+                              textAlign: hi >= 2 ? 'right' : 'left',
+                              border: 'none',
+                            }}
+                          >
+                            {h}
+                          </th>
+                        ))}
                       </tr>
                     </thead>
                     <tbody>
-                      {top10.map((r) => {
+                      {top10.map((r, idx) => {
                         const isMe = r.student_id === me.userId;
                         const rank = r.rank;
+                        const combined = r.combined;
+                        const initials = (r.full_name ?? r.email ?? '?')
+                          .split(' ').map((w: string) => w[0]).slice(0, 2).join('').toUpperCase();
+                        const AVATAR_COLORS = [
+                          '#8B5CF6','#06B6D4','#10B981','#F59E0B',
+                          '#EF4444','#3B82F6','#EC4899','#14B8A6',
+                          '#F97316','#6366F1',
+                        ];
+                        const avatarColor = AVATAR_COLORS[idx % AVATAR_COLORS.length];
+                        const rowBg = isMe
+                          ? 'linear-gradient(90deg, rgba(79,70,229,0.08), rgba(79,70,229,0.04))'
+                          : rank === 1
+                          ? 'linear-gradient(90deg, rgba(234,179,8,0.06), transparent)'
+                          : rank === 2
+                          ? 'linear-gradient(90deg, rgba(148,163,184,0.08), transparent)'
+                          : rank === 3
+                          ? 'linear-gradient(90deg, rgba(249,115,22,0.06), transparent)'
+                          : idx % 2 === 0 ? 'var(--paper)' : 'rgba(248,250,252,0.8)';
+
+                        const rankBadge = rank === 1
+                          ? { bg: 'linear-gradient(135deg,#fbbf24,#f59e0b)', color: 'white', label: '🥇' }
+                          : rank === 2
+                          ? { bg: 'linear-gradient(135deg,#94a3b8,#64748b)', color: 'white', label: '🥈' }
+                          : rank === 3
+                          ? { bg: 'linear-gradient(135deg,#f97316,#ea580c)', color: 'white', label: '🥉' }
+                          : { bg: 'var(--ink-100)', color: 'var(--ink-600)', label: String(rank) };
+
+                        const scoreColor = combined >= 90
+                          ? '#10B981'
+                          : combined >= 75
+                          ? '#3B82F6'
+                          : combined >= 50
+                          ? '#F59E0B'
+                          : '#EF4444';
+
                         return (
                           <tr
                             key={r.student_id}
-                            style={
-                              isMe
-                                ? { background: 'var(--accent-soft)' }
-                                : undefined
-                            }
+                            style={{
+                              background: rowBg,
+                              borderTop: '1px solid var(--ink-100)',
+                            }}
                           >
-                            <td>
-                              {rank === 1 ? (
-                                <span style={{ color: '#eab308' }}>
-                                  <Crown size={14} className="inline" /> 1
-                                </span>
-                              ) : rank === 2 ? (
-                                <span style={{ color: '#9ca3af' }}>
-                                  <Medal size={14} className="inline" /> 2
-                                </span>
-                              ) : rank === 3 ? (
-                                <span style={{ color: '#cd7f32' }}>
-                                  <Award size={14} className="inline" /> 3
-                                </span>
-                              ) : (
-                                <span
-                                  className="font-mono text-sm"
-                                  style={{ color: 'var(--ink-500)' }}
+                            {/* Rank */}
+                            <td style={{ padding: '10px 12px', width: 56 }}>
+                              <div
+                                className="w-8 h-8 rounded-lg flex items-center justify-center font-bold text-xs"
+                                style={{ background: rankBadge.bg, color: rankBadge.color }}
+                              >
+                                {rank <= 3 ? rankBadge.label : rank}
+                              </div>
+                            </td>
+
+                            {/* Student */}
+                            <td style={{ padding: '10px 16px' }}>
+                              <div className="flex items-center gap-2.5">
+                                <div
+                                  className="w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-xs shrink-0"
+                                  style={{
+                                    background: isMe
+                                      ? 'linear-gradient(135deg, var(--accent), #818cf8)'
+                                      : avatarColor,
+                                    boxShadow: `0 2px 8px ${isMe ? 'rgba(79,70,229,0.4)' : avatarColor + '55'}`,
+                                  }}
                                 >
-                                  {rank}
-                                </span>
+                                  {initials}
+                                </div>
+                                <div>
+                                  <p className="font-semibold text-sm" style={{ color: isMe ? 'var(--accent)' : 'var(--ink-900)' }}>
+                                    {r.full_name ?? '—'}
+                                    {isMe && <span className="ml-1 text-xs" style={{ color: 'var(--accent)' }}>★ you</span>}
+                                  </p>
+                                  <p className="text-xs" style={{ color: 'var(--ink-500)' }}>L{r.current_level}</p>
+                                </div>
+                              </div>
+                            </td>
+
+                            {/* Assignments */}
+                            <td style={{ padding: '10px 16px', textAlign: 'right' }}>
+                              <span className="font-mono text-sm">{Number(r.total_score ?? 0).toFixed(1)}%</span>
+                            </td>
+
+                            {/* Quiz */}
+                            <td style={{ padding: '10px 16px', textAlign: 'right' }}>
+                              {r.quiz_total > 0 ? (
+                                <div>
+                                  <span className="font-mono text-sm">{r.quiz_score.toFixed(0)}%</span>
+                                  <p className="text-xs" style={{ color: 'var(--ink-500)' }}>{r.quiz_correct}/{r.quiz_total}</p>
+                                </div>
+                              ) : (
+                                <span className="text-xs" style={{ color: 'var(--ink-400)' }}>—</span>
                               )}
                             </td>
-                            <td>
-                              <p className="font-medium">
-                                {r.full_name ?? '—'}
-                                {isMe && (
-                                  <span
-                                    className="ml-2 text-xs font-normal"
-                                    style={{ color: 'var(--accent)' }}
-                                  >
-                                    (you)
-                                  </span>
-                                )}
+
+                            {/* Combined — with bar */}
+                            <td style={{ padding: '10px 16px', textAlign: 'right', minWidth: 120 }}>
+                              <p className="font-display font-bold text-sm" style={{ color: scoreColor }}>
+                                {combined.toFixed(2)}%
                               </p>
-                            </td>
-                            <td className="font-mono text-xs">
-                              L{r.current_level}
-                            </td>
-                            <td>
-                              <span className="font-mono">
-                                {Number(r.total_score ?? 0).toFixed(1)}%
-                              </span>
-                            </td>
-                            <td>
-                              <span className="font-mono">
-                                {r.quiz_score.toFixed(0)}%
-                              </span>
-                              {r.quiz_total > 0 && (
-                                <span className="text-xs ml-1" style={{ color: 'var(--ink-500)' }}>
-                                  ({r.quiz_correct}/{r.quiz_total})
-                                </span>
-                              )}
-                            </td>
-                            <td className="font-mono font-semibold">
-                              {r.combined.toFixed(2)}%
+                              <div
+                                className="h-1 rounded-full mt-1 ml-auto"
+                                style={{ width: 72, background: 'var(--ink-100)' }}
+                              >
+                                <div
+                                  className="h-full rounded-full"
+                                  style={{ width: `${Math.min(100, combined)}%`, background: scoreColor }}
+                                />
+                              </div>
                             </td>
                           </tr>
                         );
@@ -422,8 +548,7 @@ export default async function StudentLeaderboardPage() {
               {toppers.length > 0 && (
                 <>
                   <h3 className="font-display text-lg font-semibold mb-3 flex items-center gap-2">
-                    <TrendingUp size={16} style={{ color: 'var(--accent)' }} /> Top
-                    scorer per assignment
+                    <TrendingUp size={16} style={{ color: 'var(--accent)' }} /> Top scorer per assignment
                   </h3>
                   <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
                     {toppers.map((t) => {
@@ -432,41 +557,20 @@ export default async function StudentLeaderboardPage() {
                         <div
                           key={t.id}
                           className="card"
-                          style={
-                            isMe
-                              ? {
-                                  borderColor: 'var(--accent)',
-                                  background: 'var(--accent-soft)',
-                                }
-                              : undefined
-                          }
+                          style={isMe ? { borderColor: 'var(--accent)', background: 'var(--accent-soft)' } : undefined}
                         >
                           <div className="flex items-start justify-between gap-2 mb-2">
-                            <p className="font-display font-semibold leading-tight">
-                              {t.title}
-                            </p>
-                            <Pill tone={t.kind === 'assessment' ? 'accent' : 'blue'}>
-                              {t.kind}
-                            </Pill>
+                            <p className="font-display font-semibold leading-tight">{t.title}</p>
+                            <Pill tone={t.kind === 'assessment' ? 'accent' : 'blue'}>{t.kind}</Pill>
                           </div>
                           <div className="flex items-center gap-2 mt-3">
                             <Trophy size={14} style={{ color: '#eab308' }} />
                             <p className="text-sm font-medium">
                               {t.topper?.profiles?.full_name ?? '—'}
-                              {isMe && (
-                                <span
-                                  className="ml-1 text-xs"
-                                  style={{ color: 'var(--accent)' }}
-                                >
-                                  (you)
-                                </span>
-                              )}
+                              {isMe && <span className="ml-1 text-xs" style={{ color: 'var(--accent)' }}>(you)</span>}
                             </p>
                           </div>
-                          <p
-                            className="text-xs mt-1 font-mono"
-                            style={{ color: 'var(--ink-500)' }}
-                          >
+                          <p className="text-xs mt-1 font-mono" style={{ color: 'var(--ink-500)' }}>
                             Score: {t.topper?.score} / {t.max_score}
                           </p>
                         </div>

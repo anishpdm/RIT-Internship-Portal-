@@ -207,10 +207,8 @@ export default async function StudentHomePage() {
                 const isOverdue = a.due_at && new Date(a.due_at) < new Date();
                 return (
                   <Link key={a.id} href={`/student/assignments/${a.id}`}
-                    className="flex items-center gap-3 p-3 rounded-xl group transition-all"
+                    className="flex items-center gap-3 p-3 rounded-xl hover-border group"
                     style={{ background: isOverdue ? 'rgba(239,68,68,.05)' : 'var(--ink-50)', border: `1.5px solid ${isOverdue ? 'rgba(239,68,68,.2)' : 'var(--ink-100)'}`, textDecoration: 'none' }}
-                    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor='var(--accent)'; }}
-                    onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor=isOverdue ? 'rgba(239,68,68,.2)' : 'var(--ink-100)'; }}
                   >
                     <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
                       style={{ background: isOverdue ? 'rgba(239,68,68,.1)' : 'var(--accent-soft)' }}>

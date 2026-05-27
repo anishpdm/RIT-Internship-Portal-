@@ -148,10 +148,8 @@ export default async function MentorHomePage() {
                 if (!i) return null;
                 return (
                   <Link key={a.internship_id} href={`/mentor/performance/${a.internship_id}`}
-                    className="flex items-center gap-3 p-3 rounded-xl group transition-all"
+                    className="flex items-center gap-3 p-3 rounded-xl hover-amber group"
                     style={{ border: '1.5px solid var(--ink-100)', textDecoration: 'none' }}
-                    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor='rgba(245,158,11,.30)'; (e.currentTarget as HTMLElement).style.background='rgba(245,158,11,.05)'; }}
-                    onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor='var(--ink-100)'; (e.currentTarget as HTMLElement).style.background=''; }}
                   >
                     <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
                       style={{ background: 'linear-gradient(135deg, rgba(245,158,11,.15), rgba(251,191,36,.08))' }}>

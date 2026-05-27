@@ -311,7 +311,16 @@ a.link:hover { color:var(--accent-hover); text-decoration:underline; }
 .brand-mark { width:32px; height:32px; border-radius:8px; background:linear-gradient(135deg,var(--accent),#818cf8); color:white; display:inline-flex; align-items:center; justify-content:center; font-weight:700; font-size:.72rem; box-shadow:0 2px 8px rgba(99,102,241,.30); }
 ::selection { background:var(--accent-soft); color:var(--accent); }
 
-/* ── Mobile ─────────────────────────────────────────────── */
+/* ── Hover utility classes (used in server components) ── */
+.hover-indigo { transition: border-color 150ms, background 150ms; }
+.hover-indigo:hover { border-color: rgba(99,102,241,.28) !important; background: var(--accent-soft) !important; }
+.hover-amber  { transition: border-color 150ms, background 150ms; }
+.hover-amber:hover  { border-color: rgba(245,158,11,.32) !important; background: rgba(245,158,11,.05) !important; }
+.hover-border { transition: border-color 150ms; }
+.hover-border:hover { border-color: var(--accent) !important; }
+
+/* ── Stat card hover (handled by CSS since Stat is a client component) ── */
+
 @media (max-width:768px) {
   .page-title { font-size:1.5rem; }
   .page-subtitle { font-size:.875rem; }

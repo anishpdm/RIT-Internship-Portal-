@@ -73,10 +73,8 @@ export default async function AdminOverview() {
             <div className="space-y-3">
               {recentInternships.map((i) => (
                 <Link key={i.id} href={`/admin/internships/${i.id}`}
-                  className="flex items-center justify-between gap-4 p-3 rounded-xl group transition-all"
-                  style={{ border: '1.5px solid var(--ink-100)' }}
-                  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor='rgba(99,102,241,.25)'; (e.currentTarget as HTMLElement).style.background='var(--accent-soft)'; }}
-                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor='var(--ink-100)'; (e.currentTarget as HTMLElement).style.background=''; }}
+                  className="flex items-center justify-between gap-4 p-3 rounded-xl hover-indigo group"
+                  style={{ border: '1.5px solid var(--ink-100)', textDecoration: 'none' }}
                 >
                   <div className="flex items-center gap-3 min-w-0">
                     <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"

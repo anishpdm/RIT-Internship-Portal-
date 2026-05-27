@@ -134,38 +134,42 @@ export function DashboardShell({
     .join('')
     .toUpperCase();
 
+  const ROLE_COLORS: Record<UserRole, { from: string; to: string; badge: string }> = {
+    admin: { from: '#f43f5e', to: '#fb7185', badge: '#fda4af' },
+    mentor: { from: '#f59e0b', to: '#fbbf24', badge: '#fde68a' },
+    student: { from: '#6366f1', to: '#818cf8', badge: '#c7d2fe' },
+  };
+  const rc = ROLE_COLORS[role];
+
   return (
-    <div className="min-h-screen flex" style={{ background: 'var(--bg)' }}>
+    <div className="min-h-screen flex app-bg" style={{ background: undefined }}>
       {/* Mobile top bar */}
       <div
         className="md:hidden fixed top-0 left-0 right-0 z-30 flex items-center justify-between px-4 py-3 no-print"
         style={{
-          background: 'var(--paper)',
-          borderBottom: '1px solid var(--ink-200)',
+          background: 'rgba(13,17,23,0.95)',
+          backdropFilter: 'blur(12px)',
+          borderBottom: '1px solid rgba(255,255,255,0.06)',
         }}
       >
-        <Link href="/" className="flex items-center gap-2">
-          <span className="brand-mark" style={{ width: 28, height: 28, fontSize: '0.65rem' }}>
+        <Link href="/" className="flex items-center gap-2.5">
+          <div
+            className="flex items-center justify-center rounded-lg font-bold text-white text-xs"
+            style={{ width: 30, height: 30, background: `linear-gradient(135deg, ${rc.from}, ${rc.to})`, boxShadow: `0 0 12px ${rc.from}55` }}
+          >
             RIT
-          </span>
-          <span className="font-display text-sm font-semibold">
-            Internship Portal
-          </span>
+          </div>
+          <span className="font-display text-sm font-semibold text-white">Internship Portal</span>
         </Link>
-        <button
-          onClick={() => setOpen(true)}
-          className="btn btn-ghost p-2"
-          aria-label="Open menu"
-        >
+        <button onClick={() => setOpen(true)} className="p-2 rounded-lg text-white/70 hover:bg-white/10" aria-label="Open menu">
           <Menu size={20} />
         </button>
       </div>
 
-      {/* Backdrop on mobile */}
       {open && (
         <div
           className="md:hidden fixed inset-0 z-40 no-print"
-          style={{ background: 'rgba(15, 23, 42, 0.5)' }}
+          style={{ background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }}
           onClick={() => setOpen(false)}
         />
       )}
@@ -173,45 +177,57 @@ export function DashboardShell({
       {/* Sidebar */}
       <aside
         className={cn(
-          'w-64 shrink-0 flex flex-col fixed inset-y-0 left-0 z-50 transition-transform duration-200 ease-out no-print',
+          'w-64 shrink-0 flex flex-col fixed inset-y-0 left-0 z-50 transition-transform duration-300 ease-out no-print',
           'md:translate-x-0',
           open ? 'translate-x-0' : '-translate-x-full',
         )}
-        style={{ background: 'var(--sidebar-bg)' }}
+        style={{
+          background: 'var(--sidebar-bg)',
+          borderRight: '1px solid rgba(255,255,255,0.05)',
+        }}
       >
         {/* Brand */}
-        <div
-          className="px-5 py-5 flex items-center justify-between"
-          style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}
-        >
+        <div className="px-5 pt-6 pb-5">
           <Link href="/" className="flex items-center gap-3">
-            <span className="brand-mark">RIT</span>
+            <div
+              className="flex items-center justify-center rounded-xl font-bold text-white text-xs shrink-0"
+              style={{
+                width: 38, height: 38,
+                background: `linear-gradient(135deg, ${rc.from}, ${rc.to})`,
+                boxShadow: `0 0 20px ${rc.from}55`,
+              }}
+            >
+              RIT
+            </div>
             <div>
-              <p
-                className="font-display text-sm font-semibold leading-tight"
-                style={{ color: 'white' }}
-              >
+              <p className="font-display text-sm font-bold" style={{ color: 'white', lineHeight: 1.2 }}>
                 Internship Portal
               </p>
-              <p
-                className="text-[10px]"
-                style={{ color: 'var(--sidebar-text-muted)' }}
-              >
-                {ROLE_LABEL[role]} workspace
-              </p>
+              <div className="flex items-center gap-1.5 mt-0.5">
+                <span
+                  className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full"
+                  style={{ background: rc.badge + '22', color: rc.badge, border: `1px solid ${rc.badge}44`, letterSpacing: '0.04em' }}
+                >
+                  {ROLE_LABEL[role].toUpperCase()}
+                </span>
+              </div>
             </div>
           </Link>
           <button
             onClick={() => setOpen(false)}
-            className="md:hidden text-white p-1 rounded hover:bg-white/10"
-            aria-label="Close menu"
+            className="md:hidden absolute top-5 right-4 p-1 rounded-lg text-white/50 hover:bg-white/10"
           >
-            <X size={18} />
+            <X size={16} />
           </button>
         </div>
 
+        {/* Nav section label */}
+        <p className="px-5 mb-2 text-[9px] font-semibold tracking-widest" style={{ color: 'var(--sidebar-text-muted)', letterSpacing: '0.12em' }}>
+          NAVIGATION
+        </p>
+
         {/* Nav */}
-        <nav className="flex-1 py-4 px-2 space-y-0.5 overflow-y-auto">
+        <nav className="flex-1 px-3 space-y-0.5 overflow-y-auto pb-4">
           {items.map((it) => {
             const Icon = it.icon;
             const active =
@@ -221,66 +237,75 @@ export function DashboardShell({
               <Link
                 key={it.href}
                 href={it.href}
-                className={cn(
-                  'flex items-center gap-3 px-3 py-2.5 text-sm rounded-md transition-all',
-                  active ? 'nav-active' : '',
-                )}
+                className="flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all group"
                 style={{
+                  background: active ? `linear-gradient(90deg, ${rc.from}22, transparent)` : 'transparent',
+                  borderLeft: active ? `2.5px solid ${rc.from}` : '2.5px solid transparent',
                   color: active ? 'white' : 'var(--sidebar-text)',
                 }}
+                onMouseEnter={(e) => {
+                  if (!active) (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.05)';
+                }}
+                onMouseLeave={(e) => {
+                  if (!active) (e.currentTarget as HTMLElement).style.background = 'transparent';
+                }}
               >
-                <Icon size={16} />
-                <span className="font-medium">{it.label}</span>
+                <Icon
+                  size={16}
+                  style={{ color: active ? rc.from : 'var(--sidebar-text-muted)', transition: 'color 150ms' }}
+                />
+                <span className="text-sm font-medium">{it.label}</span>
+                {active && (
+                  <span
+                    className="ml-auto w-1.5 h-1.5 rounded-full"
+                    style={{ background: rc.from, boxShadow: `0 0 6px ${rc.from}` }}
+                  />
+                )}
               </Link>
             );
           })}
         </nav>
 
+        {/* Divider */}
+        <div style={{ height: 1, background: 'rgba(255,255,255,0.06)', margin: '0 12px 12px' }} />
+
         {/* User card */}
-        <div
-          className="px-3 py-4 mx-2 mb-3 rounded-lg"
-          style={{ background: 'var(--sidebar-bg-hover)' }}
-        >
-          <div className="flex items-center gap-3 mb-3">
-            <div
-              className="w-9 h-9 rounded-full flex items-center justify-center text-xs font-semibold shrink-0"
-              style={{
-                background: 'linear-gradient(135deg, var(--accent) 0%, #818cf8 100%)',
-                color: 'white',
+        <div className="px-3 pb-4">
+          <div
+            className="rounded-xl p-3"
+            style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)' }}
+          >
+            <div className="flex items-center gap-3 mb-2.5">
+              <div
+                className="w-9 h-9 rounded-xl flex items-center justify-center text-xs font-bold shrink-0 text-white"
+                style={{
+                  background: `linear-gradient(135deg, ${rc.from}, ${rc.to})`,
+                  boxShadow: `0 4px 12px ${rc.from}55`,
+                }}
+              >
+                {initials}
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-semibold truncate" style={{ color: 'white' }}>{name}</p>
+                <p className="text-[11px] truncate" style={{ color: 'var(--sidebar-text-muted)' }}>{email}</p>
+              </div>
+            </div>
+            <button
+              onClick={signOut}
+              className="flex items-center gap-2 w-full text-xs px-2.5 py-1.5 rounded-lg transition-all"
+              style={{ color: 'var(--sidebar-text-muted)' }}
+              onMouseEnter={(e) => {
+                (e.currentTarget as HTMLElement).style.background = 'rgba(239,68,68,0.12)';
+                (e.currentTarget as HTMLElement).style.color = '#fca5a5';
+              }}
+              onMouseLeave={(e) => {
+                (e.currentTarget as HTMLElement).style.background = 'transparent';
+                (e.currentTarget as HTMLElement).style.color = 'var(--sidebar-text-muted)';
               }}
             >
-              {initials}
-            </div>
-            <div className="min-w-0 flex-1">
-              <p
-                className="text-sm font-medium truncate"
-                style={{ color: 'white' }}
-              >
-                {name}
-              </p>
-              <p
-                className="text-[11px] truncate"
-                style={{ color: 'var(--sidebar-text-muted)' }}
-              >
-                {email}
-              </p>
-            </div>
+              <LogOut size={12} /> Sign out
+            </button>
           </div>
-          <button
-            onClick={signOut}
-            className="flex items-center gap-2 w-full text-xs px-2 py-1.5 rounded transition-colors"
-            style={{ color: 'var(--sidebar-text)' }}
-            onMouseEnter={(e) =>
-              ((e.currentTarget as HTMLButtonElement).style.background =
-                'rgba(255,255,255,0.05)')
-            }
-            onMouseLeave={(e) =>
-              ((e.currentTarget as HTMLButtonElement).style.background =
-                'transparent')
-            }
-          >
-            <LogOut size={12} /> Sign out
-          </button>
         </div>
       </aside>
 

@@ -5,12 +5,13 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import type { UserRole } from '@/lib/types';
+import NotificationBell from '@/components/NotificationBell';
 import {
   LayoutDashboard, GraduationCap, Users, Calendar,
   ClipboardCheck, ScrollText, BookOpen, LogOut,
   FileCheck, FileText, ShieldCheck, Trophy,
   Settings, Menu, X, ChevronLeft, ChevronRight,
-  Bell, Search, type LucideIcon,
+  Search, type LucideIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -206,18 +207,7 @@ export function DashboardShell({
           </div>
 
           <div className="flex-1" />
-
-          {/* Notifications */}
-          <button
-            className="relative flex items-center justify-center rounded-xl shrink-0"
-            style={{ width: 38, height: 38, background: 'white', border: '1.5px solid var(--ink-200)', boxShadow: 'var(--s-xs)' }}
-          >
-            <Bell size={15} style={{ color: 'var(--ink-600)' }} />
-            <span
-              className="absolute -top-1 -right-1 w-4 h-4 rounded-full text-[9px] font-bold flex items-center justify-center text-white"
-              style={{ background: 'linear-gradient(135deg,var(--accent),#818cf8)' }}
-            >3</span>
-          </button>
+          <NotificationBell />
 
           {/* Profile pill */}
           <div

@@ -236,7 +236,15 @@ export default async function StudentLeaderboardPage() {
                 const ini = (name?: string | null) => (name ?? '?').split(' ').map((w: string) => w[0]).slice(0, 2).join('').toUpperCase();
                 const PodiumSlot = ({ rows, pos, height, medal, accent, glow }: {
                   rows: any[]; pos: number; height: number; medal: string; accent: string; glow: string;
-                }) => (
+                }) => {
+                  // Always show max 2 avatars; 1 name; "+N tied" if more
+                  const visibleAvatars = rows.slice(0, 2);
+                  const extraCount = rows.length - 2;
+                  const firstName = (rows[0]?.full_name ?? rows[0]?.email ?? '—').split(' ')[0];
+                  const isMe = rows.some((r: any) => r.student_id === me.userId);
+                  const avatarSize = pos === 1 ? 54 : 42;
+
+                  return (
                   <div style={{ flex: pos === 1 ? 1.2 : 1, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                     {rows.length === 0 ? (
                       <div style={{ height: height + 88, display: 'flex', alignItems: 'flex-end', width: '100%' }}>
@@ -245,39 +253,79 @@ export default async function StudentLeaderboardPage() {
                     ) : (
                       <>
                         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: 8 }}>
+                          {/* Max 2 avatar icons */}
                           <div style={{ display: 'flex' }}>
-                            {rows.map((r: any, ri: number) => (
-                              <div key={r.student_id} className="rounded-full flex items-center justify-center font-bold text-white" style={{
-                                width: pos === 1 ? 54 : 42, height: pos === 1 ? 54 : 42,
-                                background: r.student_id === me.userId ? 'linear-gradient(135deg,var(--accent),#818cf8)' : `linear-gradient(135deg,${accent},${accent}aa)`,
-                                boxShadow: `0 4px 16px ${glow}`,
-                                fontSize: pos === 1 ? '1rem' : '.78rem',
-                                border: '3px solid white', marginLeft: ri > 0 ? -10 : 0, zIndex: rows.length - ri,
-                              }}>
+                            {visibleAvatars.map((r: any, ri: number) => (
+                              <div key={r.student_id}
+                                className="rounded-full flex items-center justify-center font-bold text-white"
+                                style={{
+                                  width: avatarSize, height: avatarSize,
+                                  background: r.student_id === me.userId
+                                    ? 'linear-gradient(135deg,var(--accent),#818cf8)'
+                                    : `linear-gradient(135deg,${accent},${accent}aa)`,
+                                  boxShadow: `0 4px 16px ${glow}`,
+                                  fontSize: pos === 1 ? '1rem' : '.78rem',
+                                  border: '3px solid white',
+                                  marginLeft: ri > 0 ? -12 : 0,
+                                  zIndex: 2 - ri,
+                                }}>
                                 {ini(r.full_name ?? r.email)}
                               </div>
                             ))}
+                            {/* +N bubble if more than 2 tied */}
+                            {extraCount > 0 && (
+                              <div
+                                className="rounded-full flex items-center justify-center font-bold text-white"
+                                style={{
+                                  width: avatarSize, height: avatarSize,
+                                  background: 'rgba(100,116,139,.75)',
+                                  fontSize: pos === 1 ? '.75rem' : '.65rem',
+                                  border: '3px solid white',
+                                  marginLeft: -12,
+                                  zIndex: 0,
+                                }}>
+                                +{extraCount}
+                              </div>
+                            )}
                           </div>
-                          {rows.slice(0, 1).map((r: any) => (
-                            <p key={r.student_id} className="font-semibold truncate text-center" style={{ fontSize: pos === 1 ? '.85rem' : '.75rem', marginTop: 6, color: r.student_id === me.userId ? 'var(--accent)' : 'var(--ink-900)', maxWidth: 100 }}>
-                              {(r.full_name ?? r.email ?? '—').split(' ')[0]}{r.student_id === me.userId ? ' ★' : ''}
-                            </p>
-                          ))}
+
+                          {/* Only 1 name */}
+                          <p className="font-semibold truncate text-center"
+                            style={{ fontSize: pos === 1 ? '.85rem' : '.75rem', marginTop: 6, maxWidth: 100,
+                              color: isMe ? 'var(--accent)' : 'var(--ink-900)' }}>
+                            {firstName}{isMe ? ' ★' : ''}
+                            {rows.length > 1 && (
+                              <span style={{ color: 'var(--ink-400)', fontWeight: 400, fontSize: '.7rem' }}>
+                                {' '}& {rows.length - 1}
+                              </span>
+                            )}
+                          </p>
+
+                          {/* Score */}
                           <p className="font-bold" style={{ color: accent, fontSize: pos === 1 ? '1.1rem' : '.95rem', marginTop: 2 }}>
                             {rows[0].combined.toFixed(1)}%
                           </p>
+
+                          {/* Tie badge */}
+                          {rows.length > 1 && (
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold mt-1"
+                              style={{ background: `${accent}22`, color: accent }}>
+                              {rows.length} tied
+                            </span>
+                          )}
                         </div>
-                        <div className="w-full rounded-t-2xl flex flex-col items-center justify-start pt-4" style={{
-                          height, background: `linear-gradient(180deg,${accent}30,${accent}18)`,
-                          border: `2px solid ${accent}66`, borderBottom: 'none',
-                        }}>
+
+                        {/* Platform */}
+                        <div className="w-full rounded-t-2xl flex flex-col items-center justify-start pt-4"
+                          style={{ height, background: `linear-gradient(180deg,${accent}30,${accent}18)`, border: `2px solid ${accent}66`, borderBottom: 'none' }}>
                           <span style={{ fontSize: pos === 1 ? '2.2rem' : '1.7rem' }}>{medal}</span>
                           <span className="font-black mt-1" style={{ color: accent, fontSize: '.75rem' }}>#{pos}</span>
                         </div>
                       </>
                     )}
                   </div>
-                );
+                  );
+                };
                 return (
                   <div className="mb-6 px-2">
                     <div className="flex items-end gap-2" style={{ height: 280 }}>

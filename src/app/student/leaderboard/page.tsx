@@ -64,7 +64,7 @@ export default async function StudentLeaderboardPage() {
     supabase
       .from('v_student_quiz_aggregate')
       .select(
-        'student_id, internship_id, quiz_score_pct, questions_answered, questions_correct',
+        'student_id, internship_id, quiz_score_pct, total_questions, questions_answered, questions_correct',
       )
       .in('internship_id', internshipIds),
     // 3. Every assignment in every enrolled internship
@@ -115,7 +115,7 @@ export default async function StudentLeaderboardPage() {
     m.set(q.student_id, {
       score: Number(q.quiz_score_pct ?? 0),
       correct: Number(q.questions_correct ?? 0),
-      total: Number(q.questions_answered ?? 0),
+      total: Number((q as any).total_questions ?? 0),
     });
     quizAggregates[q.internship_id] = m;
   }
@@ -405,7 +405,7 @@ export default async function StudentLeaderboardPage() {
                           </td>
                           <td style={{ textAlign: 'right', padding: '10px 14px' }}>
                             {r.quiz_total > 0 ? (
-                              <div><span className="font-mono text-sm">{r.quiz_score.toFixed(0)}%</span><p className="text-xs" style={{ color: 'var(--ink-400)' }}>{r.quiz_correct}/{r.quiz_total}</p></div>
+                              <div><span className="font-mono text-sm">{r.quiz_score.toFixed(0)}%</span><p className="text-xs" style={{ color: 'var(--ink-400)' }}>{r.quiz_correct}/{r.quiz_total} correct</p></div>
                             ) : <span style={{ color: 'var(--ink-300)', fontSize: '.8rem' }}>—</span>}
                           </td>
                           <td style={{ textAlign: 'right', padding: '10px 14px' }}>

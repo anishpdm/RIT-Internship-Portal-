@@ -47,7 +47,7 @@ export default async function MentorInternshipPerformancePage({
       .order('total_score', { ascending: false }),
     supabase
       .from('v_student_quiz_aggregate')
-      .select('student_id, quiz_score_pct, questions_answered, questions_correct')
+      .select('student_id, quiz_score_pct, total_questions, questions_answered, questions_correct')
       .eq('internship_id', params.id),
     supabase
       .from('sessions')
@@ -62,11 +62,12 @@ export default async function MentorInternshipPerformancePage({
   const totalSessions = sessionsCountRes.count;
   const totalAssignments = assignmentsCountRes.count;
 
-  const quizMap = new Map<string, { score: number; correct: number; answered: number }>();
+  const quizMap = new Map<string, { score: number; correct: number; answered: number; total: number }>();
   for (const q of quizAggRes.data ?? []) {
     quizMap.set((q as any).student_id, {
       score: Number((q as any).quiz_score_pct ?? 0),
       correct: Number((q as any).questions_correct ?? 0),
+      total: Number((q as any).total_questions ?? 0),
       answered: Number((q as any).questions_answered ?? 0),
     });
   }

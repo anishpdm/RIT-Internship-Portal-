@@ -1,6 +1,6 @@
 'use client';
 
-import { type LucideIcon, TrendingUp, TrendingDown } from 'lucide-react';
+import { TrendingUp, TrendingDown } from 'lucide-react';
 
 /* ─── PageHeader ─────────────────────────────────────── */
 export function PageHeader({ eyebrow, title, subtitle, actions }: {
@@ -19,9 +19,11 @@ export function PageHeader({ eyebrow, title, subtitle, actions }: {
 }
 
 /* ─── Stat ───────────────────────────────────────────── */
-export function Stat({ label, value, icon: Icon, accent = '#6366f1', trend }: {
-  label: string; value: React.ReactNode;
-  icon?: LucideIcon; accent?: string;
+export function Stat({ label, value, icon, accent = '#6366f1', trend }: {
+  label: string;
+  value: React.ReactNode;
+  icon?: React.ReactNode;
+  accent?: string;
   trend?: { value: string; up?: boolean };
 }) {
   const soft = accent + '18';
@@ -41,10 +43,12 @@ export function Stat({ label, value, icon: Icon, accent = '#6366f1', trend }: {
             </div>
           )}
         </div>
-        {Icon && (
-          <div className="w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 transition-transform group-hover:scale-110"
-            style={{ background: soft }}>
-            <Icon size={20} style={{ color: accent }}/>
+        {icon && (
+          <div
+            className="w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 transition-transform group-hover:scale-110"
+            style={{ background: soft }}
+          >
+            {icon}
           </div>
         )}
       </div>

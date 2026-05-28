@@ -75,10 +75,10 @@ export default async function MentorHomePage() {
 
       {/* ── Stats ── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-        <Stat label="Internships"   value={internshipIds.length} icon={TrendingUp}    accent="#f59e0b"/>
-        <Stat label="Students"      value={studentCount}         icon={Users}          accent="#10b981"/>
-        <Stat label="Pending Review" value={pendingCount}        icon={ClipboardCheck} accent="#ef4444"/>
-        <Stat label="Upcoming Sessions" value={upcoming.length}  icon={Calendar}       accent="#6366f1"/>
+        <Stat label="Internships"        value={internshipIds.length} icon={<TrendingUp    size={20} color="#f59e0b"/>} accent="#f59e0b"/>
+        <Stat label="Students"           value={studentCount}         icon={<Users          size={20} color="#10b981"/>} accent="#10b981"/>
+        <Stat label="Pending Review"     value={pendingCount}         icon={<ClipboardCheck size={20} color="#ef4444"/>} accent="#ef4444"/>
+        <Stat label="Upcoming Sessions"  value={upcoming.length}      icon={<Calendar       size={20} color="#6366f1"/>} accent="#6366f1"/>
       </div>
 
       {/* ── Two-col ── */}

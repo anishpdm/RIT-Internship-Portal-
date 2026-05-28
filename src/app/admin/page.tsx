@@ -52,10 +52,10 @@ export default async function AdminOverview() {
 
       {/* ── Stats ── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-        <Stat label="Active Internships" value={internshipsCount ?? 0} icon={GraduationCap} accent="#6366f1"/>
-        <Stat label="Total Students"     value={studentsCount ?? 0}   icon={Users}          accent="#10b981"/>
-        <Stat label="Mentors"            value={mentorsCount ?? 0}    icon={ShieldCheck}    accent="#06b6d4"/>
-        <Stat label="Pending Review"     value={pendingSubsCount ?? 0} icon={ClipboardCheck} accent="#f59e0b"/>
+        <Stat label="Active Internships" value={internshipsCount ?? 0} icon={<GraduationCap size={20} color="#6366f1"/>} accent="#6366f1"/>
+        <Stat label="Total Students"     value={studentsCount ?? 0}   icon={<Users          size={20} color="#10b981"/>} accent="#10b981"/>
+        <Stat label="Mentors"            value={mentorsCount ?? 0}    icon={<ShieldCheck    size={20} color="#06b6d4"/>} accent="#06b6d4"/>
+        <Stat label="Pending Review"     value={pendingSubsCount ?? 0} icon={<ClipboardCheck size={20} color="#f59e0b"/>} accent="#f59e0b"/>
       </div>
 
       {/* ── Two-col ── */}

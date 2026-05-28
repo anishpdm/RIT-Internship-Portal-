@@ -93,9 +93,9 @@ export default async function StudentHomePage() {
 
       {/* ── Stats ── */}
       <div className="grid grid-cols-3 gap-4 mb-8">
-        <Stat label="Internships"   value={enrollments?.length ?? 0} icon={Star}     accent="#6366f1"/>
-        <Stat label="Avg Score"     value={`${avgScore}%`}           icon={Trophy}   accent="#f59e0b"/>
-        <Stat label="Pending Tasks" value={pending.length}           icon={BookOpen} accent="#ef4444"/>
+        <Stat label="Internships"   value={enrollments?.length ?? 0} icon={<Star     size={20} color="#6366f1"/>} accent="#6366f1"/>
+        <Stat label="Avg Score"     value={`${avgScore}%`}           icon={<Trophy   size={20} color="#f59e0b"/>} accent="#f59e0b"/>
+        <Stat label="Pending Tasks" value={pending.length}           icon={<BookOpen size={20} color="#ef4444"/>} accent="#ef4444"/>
       </div>
 
       {/* ── Internship progress ── */}

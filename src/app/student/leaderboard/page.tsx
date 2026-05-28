@@ -237,9 +237,10 @@ export default async function StudentLeaderboardPage() {
                 const PodiumSlot = ({ rows, pos, height, medal, accent, glow }: {
                   rows: any[]; pos: number; height: number; medal: string; accent: string; glow: string;
                 }) => {
-                  // Always show max 2 avatars; 1 name; "+N tied" if more
-                  const visibleAvatars = rows.slice(0, 2);
-                  const extraCount = rows.length - 2;
+                  // Show up to 3 avatars; only cap with +N when 4 or more are tied
+                  const MAX_AVATARS = 3;
+                  const visibleAvatars = rows.slice(0, MAX_AVATARS);
+                  const extraCount = rows.length - MAX_AVATARS;
                   const firstName = (rows[0]?.full_name ?? rows[0]?.email ?? '—').split(' ')[0];
                   const isMe = rows.some((r: any) => r.student_id === me.userId);
                   const avatarSize = pos === 1 ? 54 : 42;

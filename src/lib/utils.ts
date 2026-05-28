@@ -6,26 +6,30 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 /**
- * Dense ranking — same score = same rank, no gaps.
- *   Scores 90, 85, 85, 70  →  ranks 1, 2, 2, 3
- * Rows MUST already be sorted descending by scoreKey.
+ * Dense ranking with multi-key tiebreakers.
+ *
+ * Rows must already be sorted by the same keys (descending).
+ * Two rows share a rank only when ALL keys are equal.
+ *
+ * Example with keys ['combined', 'graded_submissions', 'submitted_count']:
+ *   Jaidev  combined=81 graded=4 submitted=5  → rank 1
+ *   CHRISSAN combined=81 graded=4 submitted=4  → rank 2  (submitted less)
+ *   Emil    combined=81 graded=4 submitted=5  → rank 1  (same as Jaidev)
  */
 export function computeRanks<T extends Record<string, any>>(
   rows: T[],
-  scoreKey: keyof T,
+  keys: (keyof T) | (keyof T)[],
 ): (T & { rank: number })[] {
+  const keyList = Array.isArray(keys) ? keys : [keys];
+
+  function sameRank(a: T, b: T): boolean {
+    return keyList.every(k => Number(a[k]) === Number(b[k]));
+  }
+
   let rank = 1;
-  let lastScore: number | null = null;
   return rows.map((row, i) => {
-    const score = Number(row[scoreKey]);
-    if (i === 0) {
-      lastScore = score;
-      return { ...row, rank: 1 };
-    }
-    if (score !== lastScore) {
-      rank++;
-      lastScore = score;
-    }
+    if (i === 0) return { ...row, rank: 1 };
+    if (!sameRank(row, rows[i - 1])) rank++;
     return { ...row, rank };
   });
 }

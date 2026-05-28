@@ -80,10 +80,15 @@ export default async function InternshipPerformancePage({
       };
     })
     // Re-sort by COMBINED instead of just assignment total — true ranking
-    .sort((a: any, b: any) => b.combined - a.combined);
+    .sort((a: any, b: any) => {
+      if (b.combined !== a.combined) return b.combined - a.combined;
+      if ((b.graded_submissions ?? 0) !== (a.graded_submissions ?? 0))
+        return (b.graded_submissions ?? 0) - (a.graded_submissions ?? 0);
+      return (b.submitted_count ?? 0) - (a.submitted_count ?? 0);
+    });
 
   // Dense ranks so ties share same position number
-  const rows = computeRanks(unsortedRows, 'combined');
+  const rows = computeRanks(unsortedRows, ['combined', 'graded_submissions', 'submitted_count']);
 
   // Per-student submitted (not necessarily graded) count
   const studentIds = (rows ?? []).map((r: any) => r.student_id);

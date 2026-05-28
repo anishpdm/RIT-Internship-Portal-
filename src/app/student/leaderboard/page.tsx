@@ -15,6 +15,7 @@ interface LeaderRow {
   status: string;
   total_score: number;
   graded_submissions: number;
+  submitted_count: number;
   attended_sessions: number;
 }
 
@@ -159,8 +160,12 @@ export default async function StudentLeaderboardPage() {
           });
 
           // Sort then compute proper dense ranks (ties share same position)
-          rowsWithCombined.sort((a, b) => b.combined - a.combined);
-          const rankedRows = computeRanks(rowsWithCombined, 'combined');
+          rowsWithCombined.sort((a, b) => {
+            if (b.combined !== a.combined) return b.combined - a.combined;
+            if (b.graded_submissions !== a.graded_submissions) return b.graded_submissions - a.graded_submissions;
+            return (b.submitted_count ?? 0) - (a.submitted_count ?? 0);
+          });
+          const rankedRows = computeRanks(rowsWithCombined, ['combined', 'graded_submissions', 'submitted_count']);
 
           const top10 = rankedRows.slice(0, 10);
           const top5 = rankedRows.slice(0, 5);

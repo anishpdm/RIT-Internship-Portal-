@@ -231,7 +231,7 @@ export default async function StudentLeaderboardPage() {
 
               {/* ── PODIUM ── */}
               {top5.length > 0 && (() => {
-                const byRank = (r: number) => rankedRows.filter((x: any) => x.rank === r).slice(0, 2);
+                const byRank = (r: number) => rankedRows.filter((x: any) => x.rank === r);
                 const p1 = byRank(1); const p2 = byRank(2); const p3 = byRank(3);
                 const ini = (name?: string | null) => (name ?? '?').split(' ').map((w: string) => w[0]).slice(0, 2).join('').toUpperCase();
                 const PodiumSlot = ({ rows, pos, height, medal, accent, glow }: {

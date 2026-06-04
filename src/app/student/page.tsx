@@ -22,7 +22,8 @@ export default async function StudentHomePage() {
   if (internshipIds.length) {
     const { data } = await supabase
       .from('sessions').select('id,title,session_type,scheduled_at,status,meeting_url,internships:internship_id(title)')
-      .in('internship_id', internshipIds).gte('scheduled_at', new Date().toISOString())
+      .in('internship_id', internshipIds)
+      .eq('is_hidden', false).gte('scheduled_at', new Date().toISOString())
       .order('scheduled_at', { ascending: true }).limit(5);
     upcoming = data ?? [];
   }
@@ -31,7 +32,8 @@ export default async function StudentHomePage() {
   if (internshipIds.length) {
     const { data: allA } = await supabase
       .from('assignments').select('id,title,kind,due_at,max_score,internships:internship_id(title)')
-      .in('internship_id', internshipIds).order('due_at', { ascending: true, nullsFirst: false });
+      .in('internship_id', internshipIds)
+      .eq('is_hidden', false).order('due_at', { ascending: true, nullsFirst: false });
     const { data: mySubs } = await supabase
       .from('submissions').select('assignment_id').eq('student_id', me.userId);
     const submittedIds = new Set((mySubs ?? []).map((s: any) => s.assignment_id));

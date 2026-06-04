@@ -6,7 +6,7 @@ import { requireRole } from '@/lib/auth';
 import { PageHeader, Pill, Stat } from '@/components/ui';
 import { logAudit } from '@/lib/audit';
 import { formatDate } from '@/lib/utils';
-import { TrendingUp, Pencil, Upload, Trash2, Layers, Star, RefreshCw, Check } from 'lucide-react';
+import { TrendingUp, Pencil, Upload, Trash2, Layers, Star, RefreshCw, Check, Settings2 } from 'lucide-react';
 import ConfirmDeleteButton from '@/components/ConfirmDeleteButton';
 
 export const dynamic = 'force-dynamic';
@@ -289,6 +289,12 @@ export default async function InternshipDetailPage({
         }
         actions={
           <>
+            <Link
+              href={`/admin/internships/${internship.id}/content`}
+              className="btn btn-secondary"
+            >
+              <Settings2 size={14} /> Content control
+            </Link>
             <Link
               href={`/admin/internships/${internship.id}/performance`}
               className="btn btn-secondary"

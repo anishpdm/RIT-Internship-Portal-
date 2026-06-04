@@ -27,6 +27,7 @@ export default async function StudentSessionsPage() {
         'id, title, session_type, status, scheduled_at, duration_minutes, internships:internship_id (title)',
       )
       .in('internship_id', internshipIds)
+      .eq('is_hidden', false)
       .order('scheduled_at', { ascending: false });
     sessions = data ?? [];
   }

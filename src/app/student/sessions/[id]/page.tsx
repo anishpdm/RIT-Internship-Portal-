@@ -47,6 +47,7 @@ export default async function StudentSessionDetailPage({
     .from('quizzes')
     .select('id, status, title, mode, starts_at, ends_at')
     .eq('session_id', params.id)
+      .eq('is_hidden', false)
     .maybeSingle();
 
   // Window state for self-paced quizzes

@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
 import { PageHeader, Pill, EmptyState } from '@/components/ui';
 import { formatDate } from '@/lib/utils';
-import { Plus } from 'lucide-react';
+import { Plus, Copy } from 'lucide-react';
 
 export const dynamic = 'force-dynamic';
 
@@ -20,9 +20,14 @@ export default async function InternshipsPage() {
         title="Internships"
         subtitle="Cohort programs you've defined. Click any to manage levels, students, and sessions."
         actions={
-          <Link href="/admin/internships/new" className="btn btn-primary">
-            <Plus size={16} /> New internship
-          </Link>
+          <>
+            <Link href="/admin/internships/clone" className="btn btn-secondary">
+              <Copy size={16} /> Clone existing
+            </Link>
+            <Link href="/admin/internships/new" className="btn btn-primary">
+              <Plus size={16} /> New internship
+            </Link>
+          </>
         }
       />
 

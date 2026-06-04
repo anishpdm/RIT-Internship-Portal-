@@ -6,7 +6,7 @@ import { requireRole } from '@/lib/auth';
 import { PageHeader, Pill, Stat } from '@/components/ui';
 import { logAudit } from '@/lib/audit';
 import { formatDate } from '@/lib/utils';
-import { TrendingUp, Pencil, Upload, Trash2, Layers, Star } from 'lucide-react';
+import { TrendingUp, Pencil, Upload, Trash2, Layers, Star, RefreshCw, Check } from 'lucide-react';
 import ConfirmDeleteButton from '@/components/ConfirmDeleteButton';
 
 export const dynamic = 'force-dynamic';
@@ -222,8 +222,64 @@ export default async function InternshipDetailPage({
       .order('full_name'),
   ]);
 
+  // Check for new source content if this is a cloned internship
+  let newContentCount = 0;
+  let sourceName = '';
+  if (internship.template_id) {
+    const [{ data: src }, { data: clonedSessions }, { data: clonedAssignments }] = await Promise.all([
+      supabase.from('internships').select('id, title').eq('id', internship.template_id).single(),
+      supabase.from('sessions').select('cloned_from').eq('internship_id', params.id).not('cloned_from', 'is', null),
+      supabase.from('assignments').select('cloned_from').eq('internship_id', params.id).not('cloned_from', 'is', null),
+    ]);
+    sourceName = src?.title ?? '';
+    const syncedSessions    = new Set((clonedSessions    ?? []).map((s: any) => s.cloned_from));
+    const syncedAssignments = new Set((clonedAssignments ?? []).map((a: any) => a.cloned_from));
+    const [{ count: srcSessionCount }, { count: srcAssignmentCount }] = await Promise.all([
+      supabase.from('sessions').select('*', { count: 'exact', head: true }).eq('internship_id', internship.template_id),
+      supabase.from('assignments').select('*', { count: 'exact', head: true }).eq('internship_id', internship.template_id),
+    ]);
+    const newSess = (srcSessionCount ?? 0) - syncedSessions.size;
+    const newAsgn = (srcAssignmentCount ?? 0) - syncedAssignments.size;
+    newContentCount = Math.max(0, newSess) + Math.max(0, newAsgn);
+  }
+
   return (
     <>
+      {/* Sync banner — only shown on cloned internships with new content */}
+      {internship.template_id && newContentCount > 0 && (
+        <div className="rounded-2xl p-4 mb-6 flex items-center gap-4 flex-wrap"
+          style={{ background: 'linear-gradient(135deg,rgba(99,102,241,.12),rgba(6,182,212,.08))', border: '1.5px solid rgba(99,102,241,.25)' }}>
+          <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
+            style={{ background: 'var(--accent-soft)' }}>
+            <RefreshCw size={18} style={{ color: 'var(--accent)' }}/>
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="font-bold text-sm" style={{ color: 'var(--accent)' }}>
+              {newContentCount} new item{newContentCount !== 1 ? 's' : ''} available from "{sourceName}"
+            </p>
+            <p className="text-xs" style={{ color: 'var(--ink-500)' }}>
+              New sessions or assignments were added to the source internship after you cloned it
+            </p>
+          </div>
+          <Link href={`/admin/internships/${params.id}/sync`} className="btn btn-primary shrink-0" style={{ fontSize: '.8rem' }}>
+            <RefreshCw size={13}/> Sync now
+          </Link>
+        </div>
+      )}
+
+      {internship.template_id && newContentCount === 0 && (
+        <div className="rounded-xl px-4 py-2.5 mb-4 flex items-center gap-2 text-sm"
+          style={{ background: 'var(--green-soft)', border: '1px solid rgba(16,185,129,.2)' }}>
+          <Check size={14} style={{ color: 'var(--green-700)' }}/>
+          <span style={{ color: 'var(--green-700)' }}>
+            Synced with <strong>{sourceName}</strong> — no new content
+          </span>
+          <Link href={`/admin/internships/${params.id}/sync`} className="ml-auto text-xs link">
+            Check again →
+          </Link>
+        </div>
+      )}
+
       <PageHeader
         eyebrow={`Internship · ${internship.status}`}
         title={internship.title}

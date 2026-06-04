@@ -119,14 +119,13 @@ export async function cloneInternship(payload: ClonePayload) {
             session_type: s.session_type,
             status: 'scheduled',
             recording_url: s.recording_url,
-            meeting_url: null, // new session — meeting link set separately
+            meeting_url: null,
             scheduled_at: s.scheduled_at
-              ? new Date(
-                  new Date(s.scheduled_at).getTime() + dayOffset * 86400000
-                ).toISOString()
+              ? new Date(new Date(s.scheduled_at).getTime() + dayOffset * 86400000).toISOString()
               : null,
             duration_minutes: s.duration_minutes,
             created_by: me.userId,
+            cloned_from: s.id,    // ← track provenance for future sync
           }))
         )
         .select('id, title');
@@ -184,11 +183,10 @@ export async function cloneInternship(payload: ClonePayload) {
             allow_file_upload: a.allow_file_upload,
             attachment_url: a.attachment_url,
             due_at: a.due_at
-              ? new Date(
-                  new Date(a.due_at).getTime() + dayOffset * 86400000
-                ).toISOString()
+              ? new Date(new Date(a.due_at).getTime() + dayOffset * 86400000).toISOString()
               : null,
             created_by: me.userId,
+            cloned_from: a.id,    // ← track provenance
           }))
         )
         .select('id');
@@ -225,6 +223,7 @@ export async function cloneInternship(payload: ClonePayload) {
             ? new Date(new Date(q.ends_at).getTime() + dayOffset * 86400000).toISOString()
             : null,
           created_by: me.userId,
+          cloned_from: q.id,    // ← track provenance
         })
         .select('id')
         .single();

@@ -96,52 +96,40 @@ async function promoteOrFilter(formData: FormData) {
   'use server';
   const me = await requireRole('admin');
   const supabase = createClient();
-  const id = String(formData.get('enrollment_id'));
-  const action = String(formData.get('action'));
+  const studentId    = String(formData.get('enrollment_id')); // now student_id
+  const action       = String(formData.get('action'));
   const internship_id = String(formData.get('internship_id'));
 
+  // Look up the actual enrollment by student + internship
+  const { data: enr } = await supabase
+    .from('enrollments')
+    .select('id, current_level, internship_id')
+    .eq('student_id', studentId)
+    .eq('internship_id', internship_id)
+    .single();
+
+  if (!enr) redirect(`/admin/internships/${internship_id}`);
+
   if (action === 'promote') {
-    const { data: enr } = await supabase
-      .from('enrollments')
-      .select('current_level, internship_id')
-      .eq('id', id)
-      .single();
-    if (enr) {
-      const { error: updErr } = await supabase
-        .from('enrollments')
-        .update({
-          current_level: enr.current_level + 1,
-          status: 'active',
-          promoted_at: new Date().toISOString(),
-        })
-        .eq('id', id);
-      if (updErr) {
-        console.error('Promote failed:', updErr);
-        throw new Error('Promote failed: ' + updErr.message);
-      }
-    }
+    await supabase.from('enrollments')
+      .update({ current_level: enr.current_level + 1, status: 'active' })
+      .eq('id', enr.id);
   } else if (action === 'filter') {
-    const { error: updErr } = await supabase
-      .from('enrollments')
-      .update({ status: 'filtered', filtered_at: new Date().toISOString() })
-      .eq('id', id);
-    if (updErr) {
-      console.error('Filter failed:', updErr);
-      throw new Error('Filter failed: ' + updErr.message);
-    }
+    await supabase.from('enrollments')
+      .update({ status: 'filtered' })
+      .eq('id', enr.id);
   } else if (action === 'unfilter') {
-    // Restore a filtered student back to active
-    await supabase
-      .from('enrollments')
-      .update({ status: 'active', filtered_at: null })
-      .eq('id', id);
+    await supabase.from('enrollments')
+      .update({ status: 'active' })
+      .eq('id', enr.id);
   }
+
   await logAudit({
     actor_id: me.userId,
     actor_role: 'admin',
     action: `enrollment_${action}`,
     entity_type: 'enrollment',
-    entity_id: id,
+    entity_id: enr.id,
   });
   revalidatePath(`/admin/internships/${internship_id}`);
   revalidatePath(`/admin/internships/${internship_id}/levels`);
@@ -186,7 +174,7 @@ export default async function InternshipDetailPage({
     { data: levels },
     { data: enrollments },
     { data: mentorAssignments },
-    { data: leaderboard },
+    { data: quizAgg },
     { data: students },
     { data: mentors },
   ] = await Promise.all([
@@ -195,21 +183,21 @@ export default async function InternshipDetailPage({
       .select('*')
       .eq('internship_id', params.id)
       .order('level_number'),
+    // Use leaderboard view for consistent scores (same formula everywhere)
     supabase
-      .from('enrollments')
-      .select('id, student_id, current_level, status, total_score, profiles:student_id (full_name, email)')
+      .from('v_internship_leaderboard')
+      .select('student_id, full_name, email, current_level, status, total_score, graded_submissions, submitted_count, attended_sessions')
       .eq('internship_id', params.id)
       .order('total_score', { ascending: false }),
     supabase
       .from('mentor_assignments')
       .select('id, mentor_id, profiles:mentor_id (full_name, email)')
       .eq('internship_id', params.id),
+    // Quiz aggregates for combined score
     supabase
-      .from('v_internship_leaderboard')
-      .select('*')
-      .eq('internship_id', params.id)
-      .order('avg_score', { ascending: false })
-      .limit(10),
+      .from('v_student_quiz_aggregate')
+      .select('student_id, quiz_score_pct, total_questions')
+      .eq('internship_id', params.id),
     supabase
       .from('profiles')
       .select('id, full_name, email')
@@ -221,6 +209,20 @@ export default async function InternshipDetailPage({
       .eq('role', 'mentor')
       .order('full_name'),
   ]);
+
+  // Build combined score: assignment 95% + quiz 5%
+  const quizMap = new Map<string, number>();
+  for (const q of quizAgg ?? []) {
+    quizMap.set((q as any).student_id, Number((q as any).quiz_score_pct ?? 0));
+  }
+
+  // Enrich enrollments with combined score, sort by combined desc
+  const enrichedEnrollments = (enrollments ?? []).map((e: any) => {
+    const asgmt  = Number(e.total_score ?? 0);
+    const quiz   = quizMap.get(e.student_id) ?? 0;
+    const combined = asgmt * 0.95 + quiz * 0.05;
+    return { ...e, combined };
+  }).sort((a: any, b: any) => b.combined - a.combined);
 
   // Check for new source content if this is a cloned internship
   let newContentCount = 0;
@@ -441,72 +443,87 @@ export default async function InternshipDetailPage({
             <h2 className="font-display text-xl font-semibold">
               Students &amp; level standings
             </h2>
+            <div className="flex gap-2">
+              <Link href={`/admin/internships/${params.id}/levels`} className="btn btn-secondary text-xs">
+                <Layers size={13}/> Level view
+              </Link>
+              <Link href={`/admin/internships/${params.id}/performance`} className="btn btn-secondary text-xs">
+                <TrendingUp size={13}/> Full performance
+              </Link>
+            </div>
           </div>
-          {enrollments?.length ? (
+          {enrichedEnrollments?.length ? (
             <table className="table">
               <thead>
                 <tr>
-                  <th>Rank</th>
+                  <th style={{ width: 48 }}>#</th>
                   <th>Student</th>
-                  <th>Current level</th>
+                  <th>Level</th>
                   <th>Status</th>
-                  <th>Score</th>
+                  <th style={{ textAlign: 'right' }}>Assignment</th>
+                  <th style={{ textAlign: 'right' }}>Combined</th>
                   <th></th>
                 </tr>
               </thead>
               <tbody>
-                {enrollments.map((e: any, idx: number) => (
-                  <tr key={e.id}>
-                    <td className="font-mono">{idx + 1}</td>
-                    <td>
-                      <p className="font-medium">{e.profiles?.full_name}</p>
-                      <p className="text-xs" style={{ color: 'var(--ink-500)' }}>
-                        {e.profiles?.email}
-                      </p>
-                    </td>
-                    <td>
-                      <span className="font-mono">L{e.current_level}</span>
-                    </td>
-                    <td>
-                      <Pill
-                        tone={
-                          e.status === 'active'
-                            ? 'green'
-                            : e.status === 'filtered'
-                              ? 'red'
-                              : 'blue'
-                        }
-                      >
-                        {e.status}
-                      </Pill>
-                    </td>
-                    <td className="font-mono">{e.total_score}</td>
-                    <td>
-                      <div className="flex gap-1">
-                        {e.current_level < internship.total_levels && (
-                          <form action={promoteOrFilter}>
-                            <input type="hidden" name="enrollment_id" value={e.id} />
-                            <input type="hidden" name="internship_id" value={internship.id} />
-                            <input type="hidden" name="action" value="promote" />
-                            <button type="submit" className="btn btn-ghost text-xs">
-                              Promote ↑
-                            </button>
-                          </form>
-                        )}
-                        {e.status !== 'filtered' && (
-                          <form action={promoteOrFilter}>
-                            <input type="hidden" name="enrollment_id" value={e.id} />
-                            <input type="hidden" name="internship_id" value={internship.id} />
-                            <input type="hidden" name="action" value="filter" />
-                            <button type="submit" className="btn btn-ghost text-xs">
-                              Filter
-                            </button>
-                          </form>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                {enrichedEnrollments.map((e: any, idx: number) => {
+                  const combined  = Number(e.combined ?? 0);
+                  const asgmt     = Number(e.total_score ?? 0);
+                  const scoreColor = combined >= 90 ? '#10b981' : combined >= 70 ? '#3b82f6' : combined >= 50 ? '#f59e0b' : '#ef4444';
+                  const COLORS = ['#8B5CF6','#06B6D4','#10B981','#F59E0B','#EF4444','#3B82F6','#EC4899','#14B8A6'];
+                  const initials = (e.full_name ?? e.email ?? '?').split(' ').map((w: string) => w[0]).slice(0,2).join('').toUpperCase();
+                  return (
+                    <tr key={e.student_id}>
+                      <td className="font-mono text-sm" style={{ color: 'var(--ink-500)' }}>{idx + 1}</td>
+                      <td>
+                        <div className="flex items-center gap-2">
+                          <div className="w-7 h-7 rounded-full flex items-center justify-center text-white font-bold text-[10px] shrink-0"
+                            style={{ background: COLORS[idx % COLORS.length] }}>
+                            {initials}
+                          </div>
+                          <div>
+                            <Link href={`/admin/students/${e.student_id}`} className="link font-medium text-sm">
+                              {e.full_name ?? '—'}
+                            </Link>
+                            <p className="text-xs" style={{ color: 'var(--ink-500)' }}>{e.email}</p>
+                          </div>
+                        </div>
+                      </td>
+                      <td><span className="font-mono text-sm font-bold">L{e.current_level}</span></td>
+                      <td>
+                        <Pill tone={e.status === 'active' ? 'green' : e.status === 'filtered' ? 'red' : 'blue'}>
+                          {e.status}
+                        </Pill>
+                      </td>
+                      <td style={{ textAlign: 'right' }}>
+                        <span className="font-mono text-sm">{asgmt.toFixed(1)}%</span>
+                      </td>
+                      <td style={{ textAlign: 'right' }}>
+                        <span className="font-bold font-mono" style={{ color: scoreColor }}>{combined.toFixed(2)}%</span>
+                      </td>
+                      <td>
+                        <div className="flex gap-1">
+                          {e.current_level < internship.total_levels && (
+                            <form action={promoteOrFilter}>
+                              <input type="hidden" name="enrollment_id" value={e.student_id}/>
+                              <input type="hidden" name="internship_id" value={internship.id}/>
+                              <input type="hidden" name="action" value="promote"/>
+                              <button type="submit" className="btn btn-ghost text-xs">↑ L{e.current_level + 1}</button>
+                            </form>
+                          )}
+                          {e.status !== 'filtered' && (
+                            <form action={promoteOrFilter}>
+                              <input type="hidden" name="enrollment_id" value={e.student_id}/>
+                              <input type="hidden" name="internship_id" value={internship.id}/>
+                              <input type="hidden" name="action" value="filter"/>
+                              <button type="submit" className="btn btn-ghost text-xs" style={{ color: 'var(--red-700)' }}>Filter</button>
+                            </form>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           ) : (
@@ -534,53 +551,18 @@ export default async function InternshipDetailPage({
         </div>
       </section>
 
-      {/* Leaderboard */}
-      <section className="mt-10">
-        <div className="card">
-          <div className="card-header">
-            <h2 className="font-display text-xl font-semibold">
-              Top 10 by average score
-            </h2>
-            <p className="text-xs" style={{ color: 'var(--ink-500)' }}>
-              Use this view between milestones to decide promotions / filters.
-            </p>
-          </div>
-          {leaderboard?.length ? (
-            <ol className="space-y-2 text-sm font-mono">
-              {leaderboard.map((row: any, i: number) => (
-                <li key={row.student_id} className="flex items-center justify-between">
-                  <span>
-                    <span style={{ color: 'var(--ink-500)' }}>{String(i + 1).padStart(2, '0')}</span>
-                    <span className="ml-3 font-sans">{row.full_name}</span>
-                  </span>
-                  <span>
-                    L{row.current_level} · avg {row.avg_score} · {row.attended_sessions} sessions
-                  </span>
-                </li>
-              ))}
-            </ol>
-          ) : (
-            <p className="text-sm" style={{ color: 'var(--ink-500)' }}>
-              No graded submissions yet.
-            </p>
-          )}
-        </div>
-      </section>
-
-      <div className="mt-10 flex gap-3">
-        <Link href="/admin/internships" className="btn btn-secondary">
-          ← All internships
+      <div className="mt-6 flex gap-3 flex-wrap">
+        <Link href="/admin/internships" className="btn btn-secondary">← All internships</Link>
+        <Link href={`/admin/internships/${internship.id}/performance`} className="btn btn-secondary">
+          <TrendingUp size={14}/> Full performance table
         </Link>
-        <Link
-          href={`/admin/sessions?internship=${internship.id}`}
-          className="btn btn-secondary"
-        >
-          Sessions for this internship
+        <Link href={`/admin/internships/${internship.id}/levels`} className="btn btn-secondary">
+          <Layers size={14}/> Level standings
         </Link>
-        <Link
-          href={`/admin/assignments?internship=${internship.id}`}
-          className="btn btn-secondary"
-        >
+        <Link href={`/admin/sessions?internship=${internship.id}`} className="btn btn-secondary">
+          Sessions
+        </Link>
+        <Link href={`/admin/assignments?internship=${internship.id}`} className="btn btn-secondary">
           Assignments
         </Link>
       </div>

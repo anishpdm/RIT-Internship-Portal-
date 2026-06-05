@@ -4,6 +4,7 @@ import { requireRole } from '@/lib/auth';
 import { PageHeader, Pill, EmptyState } from '@/components/ui';
 import { formatDateTime, relativeTime } from '@/lib/utils';
 import SubmissionBadges from '@/components/SubmissionBadges';
+import { getAccessibleLevelIds, levelOrFilter } from '@/lib/level-access';
 
 export const dynamic = 'force-dynamic';
 
@@ -11,21 +12,17 @@ export default async function StudentAssignmentsPage() {
   const me = await requireRole(['student', 'admin']);
   const supabase = createClient();
 
-  const { data: enrollments } = await supabase
-    .from('enrollments')
-    .select('internship_id')
-    .eq('student_id', me.userId);
-  const internshipIds = enrollments?.map((e: any) => e.internship_id) ?? [];
+  const access = await getAccessibleLevelIds(me.userId);
+  const internshipIds = access?.enrollments.map((e) => e.internship_id) ?? [];
 
   let assignments: any[] = [];
-  if (internshipIds.length) {
+  if (internshipIds.length && access) {
     const { data } = await supabase
       .from('assignments')
-      .select(
-        'id, title, kind, max_score, due_at, internships:internship_id (title)',
-      )
+      .select('id, title, kind, max_score, due_at, level_id, internships:internship_id (title)')
       .in('internship_id', internshipIds)
       .eq('is_hidden', false)
+      .or(levelOrFilter(access.levelIds))
       .order('due_at', { ascending: false, nullsFirst: false });
     assignments = data ?? [];
   }

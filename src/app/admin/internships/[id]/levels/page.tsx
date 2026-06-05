@@ -1,15 +1,64 @@
-import { notFound } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
 import Link from 'next/link';
-import { createClient } from '@/lib/supabase/server';
+import { revalidatePath } from 'next/cache';
+import { createClient, createAdminClient } from '@/lib/supabase/server';
 import { requireRole } from '@/lib/auth';
 import { PageHeader, Pill, Stat, EmptyState } from '@/components/ui';
-import { ArrowLeft, Layers, Trophy, Users } from 'lucide-react';
+import { ArrowLeft, Layers, Trophy, Users, ChevronsUp, ArrowUpCircle, XCircle } from 'lucide-react';
 import PrintButton from '@/components/PrintButton';
 import PrintHeader from '@/components/PrintHeader';
 
 export const dynamic = 'force-dynamic';
 
+// ── Single promote / filter ──────────────────────────────────────
+async function promoteOrFilter(formData: FormData) {
+  'use server';
+  await requireRole(['admin', 'mentor']);
+  const supabase = createClient();
+  const enrollmentId = String(formData.get('enrollment_id'));
+  const action       = String(formData.get('action'));
+  const returnUrl    = String(formData.get('return_url'));
+
+  if (action === 'promote') {
+    const { data: enr } = await supabase
+      .from('enrollments').select('current_level').eq('id', enrollmentId).single();
+    if (enr) {
+      await supabase.from('enrollments')
+        .update({ current_level: enr.current_level + 1, status: 'active', promoted_at: new Date().toISOString() })
+        .eq('id', enrollmentId);
+    }
+  } else if (action === 'filter') {
+    await supabase.from('enrollments')
+      .update({ status: 'filtered', filtered_at: new Date().toISOString() })
+      .eq('id', enrollmentId);
+  }
+  revalidatePath(returnUrl);
+  redirect(returnUrl);
+}
+
+// ── Bulk promote all eligible at a level ────────────────────────
+async function bulkPromote(formData: FormData) {
+  'use server';
+  await requireRole(['admin', 'mentor']);
+  const supabase = createAdminClient();
+  const internshipId = String(formData.get('internship_id'));
+  const levelNumber  = Number(formData.get('level_number'));
+  const returnUrl    = String(formData.get('return_url'));
+
+  // Find enrollment IDs at this level that are eligible (status = active, not filtered)
+  const enrollmentIds = String(formData.get('enrollment_ids')).split(',').filter(Boolean);
+  if (!enrollmentIds.length) { redirect(returnUrl); return; }
+
+  await supabase.from('enrollments')
+    .update({ current_level: levelNumber + 1, status: 'active', promoted_at: new Date().toISOString() })
+    .in('id', enrollmentIds);
+
+  revalidatePath(returnUrl);
+  redirect(returnUrl + '&promoted=1');
+}
+
 interface StudentLevelRow {
+  enrollment_id: string;
   student_id: string;
   full_name: string | null;
   email: string;
@@ -51,7 +100,7 @@ export default async function LevelWisePerformancePage({
   // Get all levels
   const { data: levels } = await supabase
     .from('levels')
-    .select('id, level_number, title')
+    .select('id, level_number, title, pass_threshold')
     .eq('internship_id', params.id)
     .order('level_number');
 
@@ -138,6 +187,7 @@ export default async function LevelWisePerformancePage({
       const computed = computeLevelScore(e.student_id, ln);
       const profile: any = (e as any).profiles;
       rows.push({
+        enrollment_id: e.id,
         student_id: e.student_id,
         full_name: profile?.full_name ?? null,
         email: profile?.email ?? '',
@@ -222,170 +272,183 @@ export default async function LevelWisePerformancePage({
               ? atLevel.reduce((s, r) => s + r.level_score, 0) / atLevel.length
               : 0;
 
+          const eligible = atLevel.filter((r) => r.level_score >= (level?.pass_threshold ?? 60) && r.status !== 'filtered');
+          const notEligible = atLevel.filter((r) => r.level_score < (level?.pass_threshold ?? 60) || r.status === 'filtered');
+          const returnUrl = `/admin/internships/${params.id}/levels?level=${selectedLevel ?? ''}`;
+
           return (
-            <section key={ln} className="mb-10">
-              <div className="flex items-baseline justify-between mb-4 flex-wrap gap-2">
-                <h2 className="font-display text-2xl font-bold flex items-center gap-2">
-                  <Layers size={18} style={{ color: 'var(--accent)' }} />
-                  Level {ln}
-                  {level?.title && (
-                    <span
-                      className="text-base font-normal"
-                      style={{ color: 'var(--ink-500)' }}
-                    >
-                      · {level.title}
-                    </span>
-                  )}
-                </h2>
-                <div className="flex gap-2 flex-wrap">
-                  <Pill tone="accent">
-                    <Users size={10} className="inline" /> {atLevel.length} at this level
-                  </Pill>
-                  <Pill tone="green">
-                    {past.length} past this level
-                  </Pill>
-                  <Pill>
-                    Avg score: {avgAtLevel.toFixed(1)}%
-                  </Pill>
+            <section key={ln} className="mb-8">
+              {/* Level header */}
+              <div className="rounded-2xl p-5 mb-4 relative overflow-hidden"
+                style={{ background: 'linear-gradient(135deg,var(--ink-900),#1e1b4b)', boxShadow: 'var(--s-md)' }}>
+                <div className="absolute inset-0 pointer-events-none opacity-[.04]"
+                  style={{ backgroundImage: 'radial-gradient(rgba(255,255,255,1) 1px, transparent 1px)', backgroundSize: '18px 18px' }}/>
+                <div className="relative flex items-center justify-between gap-4 flex-wrap">
+                  <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 rounded-2xl flex items-center justify-center font-black text-white"
+                      style={{ background: 'linear-gradient(135deg,var(--accent),#818cf8)', fontSize: '1.1rem' }}>
+                      {ln}
+                    </div>
+                    <div>
+                      <p className="font-bold text-white text-lg">
+                        Level {ln}{level?.title ? ` — ${level.title}` : ''}
+                      </p>
+                      <p className="text-xs" style={{ color: 'rgba(255,255,255,.45)' }}>
+                        Pass threshold: {level?.pass_threshold ?? 60}% · {atLevel.length} students · avg {avgAtLevel.toFixed(1)}%
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="pill pill-green">{past.length} past</span>
+                    <span className="pill pill-accent">{atLevel.length} here</span>
+                    {eligible.length > 0 && ln < internship.total_levels && (
+                      <span className="pill" style={{ background: 'rgba(245,158,11,.2)', color: '#fde68a', border: '1px solid rgba(245,158,11,.3)' }}>
+                        ⚡ {eligible.length} eligible to promote
+                      </span>
+                    )}
+                  </div>
                 </div>
               </div>
 
               {atLevel.length > 0 ? (
-                <div className="card p-0 overflow-hidden table-wrap">
-                  <table className="table">
-                    <thead>
-                      <tr>
-                        <th style={{ width: 60 }}>Rank</th>
-                        <th>Student</th>
-                        <th>Status</th>
-                        <th>Level {ln} score</th>
-                        <th>Graded</th>
-                        <th>Promotion</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {atLevel.map((r, idx) => {
-                        const color =
-                          r.level_score >= 70
-                            ? 'green'
-                            : r.level_score >= 40
-                              ? 'amber'
-                              : 'red';
-                        return (
-                          <tr key={r.student_id}>
-                            <td>
-                              {idx === 0 ? (
-                                <span style={{ color: '#eab308' }}>
-                                  <Trophy size={14} className="inline" /> 1
-                                </span>
-                              ) : (
-                                <span
-                                  className="font-mono text-sm"
-                                  style={{ color: 'var(--ink-500)' }}
-                                >
-                                  {idx + 1}
-                                </span>
-                              )}
-                            </td>
-                            <td>
-                              <p className="font-medium">{r.full_name ?? '—'}</p>
-                              <p
-                                className="text-xs"
-                                style={{ color: 'var(--ink-500)' }}
-                              >
-                                {r.email}
-                              </p>
-                            </td>
-                            <td>
-                              <Pill
-                                tone={
-                                  r.status === 'active'
-                                    ? 'blue'
-                                    : r.status === 'promoted'
-                                      ? 'green'
-                                      : r.status === 'filtered'
-                                        ? 'red'
-                                        : undefined
-                                }
-                              >
-                                {r.status}
-                              </Pill>
-                            </td>
-                            <td>
-                              <div className="flex items-center gap-2">
-                                <span className="font-mono font-semibold w-14">
-                                  {r.level_score.toFixed(1)}%
-                                </span>
-                                <div
-                                  className="h-2 rounded-full overflow-hidden flex-1"
-                                  style={{
-                                    background: 'var(--ink-100)',
-                                    maxWidth: 120,
-                                  }}
-                                >
-                                  <div
-                                    className="h-full"
-                                    style={{
-                                      width: `${Math.min(100, r.level_score)}%`,
-                                      background:
-                                        color === 'green'
-                                          ? '#10b981'
-                                          : color === 'amber'
-                                            ? '#f59e0b'
-                                            : '#ef4444',
-                                    }}
-                                  />
-                                </div>
+                <>
+                  {/* Bulk promote banner */}
+                  {eligible.length > 0 && ln < internship.total_levels && (
+                    <div className="rounded-xl p-4 mb-4 flex items-center gap-4 flex-wrap"
+                      style={{ background: 'linear-gradient(90deg,rgba(16,185,129,.1),rgba(16,185,129,.05))', border: '1.5px solid rgba(16,185,129,.3)' }}>
+                      <div className="flex-1">
+                        <p className="font-bold text-sm" style={{ color: 'var(--green-700)' }}>
+                          {eligible.length} student{eligible.length !== 1 ? 's' : ''} scored ≥ {level?.pass_threshold ?? 60}% and can advance to Level {ln + 1}
+                        </p>
+                        <p className="text-xs mt-0.5" style={{ color: 'var(--ink-500)' }}>
+                          {eligible.map(r => r.full_name?.split(' ')[0] ?? r.email).join(', ')}
+                        </p>
+                      </div>
+                      <form action={bulkPromote}>
+                        <input type="hidden" name="internship_id" value={params.id}/>
+                        <input type="hidden" name="level_number" value={ln}/>
+                        <input type="hidden" name="return_url" value={returnUrl}/>
+                        <input type="hidden" name="enrollment_ids" value={eligible.map(r => r.enrollment_id).join(',')}/>
+                        <button type="submit" className="btn btn-primary" style={{ fontSize: '.8rem' }}>
+                          <ChevronsUp size={14}/> Promote all {eligible.length} to Level {ln + 1}
+                        </button>
+                      </form>
+                    </div>
+                  )}
+
+                  {/* Student cards grid */}
+                  <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                    {atLevel.map((r) => {
+                      const pct = r.level_score;
+                      const threshold = level?.pass_threshold ?? 60;
+                      const isEligible = pct >= threshold && r.status !== 'filtered';
+                      const scoreColor = pct >= threshold ? '#10b981' : pct >= threshold * 0.75 ? '#f59e0b' : '#ef4444';
+                      const isLastLevel = ln >= internship.total_levels;
+                      const ini = (r.full_name ?? r.email ?? '?').split(' ').map((w: string) => w[0]).slice(0,2).join('').toUpperCase();
+
+                      return (
+                        <div key={r.student_id} className="card"
+                          style={{ borderLeft: `4px solid ${scoreColor}`, opacity: r.status === 'filtered' ? 0.65 : 1 }}>
+                          {/* Student info */}
+                          <div className="flex items-center gap-2.5 mb-3">
+                            <div className="w-9 h-9 rounded-xl flex items-center justify-center font-bold text-white text-xs shrink-0"
+                              style={{ background: `linear-gradient(135deg,${scoreColor},${scoreColor}aa)` }}>
+                              {ini}
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <p className="font-semibold text-sm truncate">{r.full_name ?? '—'}</p>
+                              <p className="text-xs truncate" style={{ color: 'var(--ink-500)' }}>{r.email}</p>
+                            </div>
+                            <Pill tone={r.status === 'active' ? 'blue' : r.status === 'filtered' ? 'red' : 'green'}>
+                              {r.status}
+                            </Pill>
+                          </div>
+
+                          {/* Score bar */}
+                          <div className="mb-3">
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="text-xs" style={{ color: 'var(--ink-500)' }}>Level {ln} score</span>
+                              <span className="font-mono font-bold text-sm" style={{ color: scoreColor }}>{pct.toFixed(1)}%</span>
+                            </div>
+                            <div className="h-2 rounded-full overflow-hidden" style={{ background: 'var(--ink-100)' }}>
+                              <div className="h-full rounded-full relative"
+                                style={{ width: `${Math.min(100, pct)}%`, background: scoreColor }}>
                               </div>
-                            </td>
-                            <td className="font-mono text-sm">
-                              {r.level_graded} / {r.level_total_assignments}
-                            </td>
-                            <td>
-                              {r.level_score >= 60 ? (
-                                <Pill tone="green">eligible</Pill>
-                              ) : (
-                                <Pill tone="red">below threshold</Pill>
+                            </div>
+                            {/* Threshold marker */}
+                            <div className="relative h-1 mt-0.5">
+                              <div className="absolute w-0.5 h-3 -top-0.5 rounded"
+                                style={{ left: `${threshold}%`, background: 'var(--ink-400)', transform: 'translateX(-50%)' }}/>
+                              <span className="absolute text-[9px]"
+                                style={{ left: `${threshold}%`, transform: 'translateX(-50%)', color: 'var(--ink-400)', top: 2 }}>
+                                {threshold}%
+                              </span>
+                            </div>
+                          </div>
+
+                          <p className="text-xs mb-3" style={{ color: 'var(--ink-500)' }}>
+                            {r.level_graded}/{r.level_total_assignments} assignments graded
+                            {isEligible && !isLastLevel && (
+                              <span className="ml-2 font-semibold" style={{ color: 'var(--green-700)' }}>✓ Eligible</span>
+                            )}
+                          </p>
+
+                          {/* Action buttons */}
+                          {r.status !== 'filtered' && (
+                            <div className="flex gap-2">
+                              {!isLastLevel && (
+                                <form action={promoteOrFilter} className="flex-1">
+                                  <input type="hidden" name="enrollment_id" value={r.enrollment_id}/>
+                                  <input type="hidden" name="action" value="promote"/>
+                                  <input type="hidden" name="return_url" value={returnUrl}/>
+                                  <button type="submit"
+                                    className={`btn w-full ${isEligible ? 'btn-primary' : 'btn-secondary'}`}
+                                    style={{ fontSize: '.75rem', padding: '.4rem .6rem' }}>
+                                    <ArrowUpCircle size={13}/>
+                                    {isEligible ? `→ Level ${ln + 1}` : `Force → L${ln + 1}`}
+                                  </button>
+                                </form>
                               )}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
+                              <form action={promoteOrFilter}>
+                                <input type="hidden" name="enrollment_id" value={r.enrollment_id}/>
+                                <input type="hidden" name="action" value="filter"/>
+                                <input type="hidden" name="return_url" value={returnUrl}/>
+                                <button type="submit" className="btn btn-danger"
+                                  style={{ fontSize: '.75rem', padding: '.4rem .6rem' }}
+                                  title="Remove from this cohort">
+                                  <XCircle size={13}/>
+                                </button>
+                              </form>
+                            </div>
+                          )}
+                          {r.status === 'filtered' && (
+                            <p className="text-xs" style={{ color: 'var(--ink-500)' }}>Removed from cohort</p>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </>
               ) : (
                 <EmptyState
-                  title="No students currently at this level"
-                  hint={
-                    past.length > 0
-                      ? `${past.length} student${past.length === 1 ? '' : 's'} have already moved past this level.`
-                      : 'Students will appear here once they reach this level.'
-                  }
+                  title={`No students at Level ${ln}`}
+                  hint={past.length > 0 ? `${past.length} student${past.length !== 1 ? 's' : ''} already advanced past this level.` : 'Students will appear here once they enrol and reach this level.'}
                 />
               )}
 
               {past.length > 0 && (
-                <p
-                  className="text-xs mt-3"
-                  style={{ color: 'var(--ink-500)' }}
-                >
-                  Past this level: {past.map((r) => r.full_name ?? r.email).join(', ')}
+                <p className="text-xs mt-3 text-right" style={{ color: 'var(--ink-400)' }}>
+                  Past this level: {past.map(r => r.full_name?.split(' ')[0] ?? r.email).join(', ')}
                 </p>
               )}
             </section>
           );
         })}
 
-      <div
-        className="card mt-8 text-xs"
-        style={{ background: 'var(--accent-soft)', color: 'var(--ink-700)' }}
-      >
+      <div className="card mt-6 text-xs"
+        style={{ background: 'var(--accent-soft)', color: 'var(--ink-700)' }}>
         <p>
-          <strong>How level scores are computed:</strong> assignments tagged with a specific
-          level count toward that level only; assignments tagged "any level" count toward every
-          level. The score is a weighted average of (student score / max score) × assignment weight.
-          A student is "eligible" for promotion when their level score is ≥ 60%.
+          <strong>How promotion works:</strong> Students at Level N can access all content tagged for Levels 1 through N. Content with no level tag is visible to everyone. When you promote a student, they immediately gain access to the next level&apos;s sessions and assignments.
         </p>
       </div>
     </>

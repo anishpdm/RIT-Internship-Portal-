@@ -102,6 +102,15 @@ export default async function StudentAssignmentDetail({
     .single();
   if (!assignment) notFound();
 
+  // Level-gate: student can only access assignments at or below their current level
+  if (me.profile.role === 'student' && assignment.level_id) {
+    const { getAccessibleLevelIds } = await import('@/lib/level-access');
+    const access = await getAccessibleLevelIds(me.userId);
+    if (!access || !access.levelIds.includes(assignment.level_id)) {
+      notFound(); // treat locked content as non-existent
+    }
+  }
+
   const [subRes, feedbackRes] = await Promise.all([
     supabase
       .from('submissions')

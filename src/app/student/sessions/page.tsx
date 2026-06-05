@@ -3,7 +3,8 @@ import { createClient } from '@/lib/supabase/server';
 import { requireRole } from '@/lib/auth';
 import { PageHeader, Pill, EmptyState } from '@/components/ui';
 import { formatDateTime } from '@/lib/utils';
-import { Calendar, Video, BookOpen, Check } from 'lucide-react';
+import { Calendar, Video, BookOpen, Check, Lock } from 'lucide-react';
+import { getAccessibleLevelIds, levelOrFilter } from '@/lib/level-access';
 
 export const dynamic = 'force-dynamic';
 
@@ -13,21 +14,17 @@ export default async function StudentSessionsPage() {
   const me = await requireRole(['student', 'admin']);
   const supabase = createClient();
 
-  const { data: enrollments } = await supabase
-    .from('enrollments')
-    .select('internship_id')
-    .eq('student_id', me.userId);
-  const internshipIds = enrollments?.map((e: any) => e.internship_id) ?? [];
+  const access = await getAccessibleLevelIds(me.userId);
+  const internshipIds = access?.enrollments.map((e) => e.internship_id) ?? [];
 
   let sessions: any[] = [];
-  if (internshipIds.length) {
+  if (internshipIds.length && access) {
     const { data } = await supabase
       .from('sessions')
-      .select(
-        'id, title, session_type, status, scheduled_at, duration_minutes, internships:internship_id (title)',
-      )
+      .select('id, title, session_type, status, scheduled_at, duration_minutes, level_id, internships:internship_id (title)')
       .in('internship_id', internshipIds)
       .eq('is_hidden', false)
+      .or(levelOrFilter(access.levelIds))
       .order('scheduled_at', { ascending: false });
     sessions = data ?? [];
   }

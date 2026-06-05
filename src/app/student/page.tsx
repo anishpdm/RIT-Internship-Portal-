@@ -4,6 +4,7 @@ import { requireRole } from '@/lib/auth';
 import { Stat, Pill } from '@/components/ui';
 import { formatDateTime, relativeTime } from '@/lib/utils';
 import { BookOpen, Calendar, Trophy, ArrowRight, Star } from 'lucide-react';
+import { getAccessibleLevelIds, levelOrFilter } from '@/lib/level-access';
 
 export const dynamic = 'force-dynamic';
 
@@ -11,29 +12,36 @@ export default async function StudentHomePage() {
   const me = await requireRole(['student', 'admin']);
   const supabase = createClient();
 
-  const { data: enrollments } = await supabase
-    .from('enrollments')
-    .select('id,current_level,status,total_score,internship_id,internships:internship_id(id,title,status,total_levels)')
-    .eq('student_id', me.userId);
-
+  const [enrollmentsRes, access] = await Promise.all([
+    supabase
+      .from('enrollments')
+      .select('id,current_level,status,total_score,internship_id,internships:internship_id(id,title,status,total_levels)')
+      .eq('student_id', me.userId),
+    getAccessibleLevelIds(me.userId),
+  ]);
+  const enrollments = enrollmentsRes.data;
   const internshipIds = enrollments?.map((e: any) => e.internship_id) ?? [];
 
   let upcoming: any[] = [];
-  if (internshipIds.length) {
+  if (internshipIds.length && access) {
     const { data } = await supabase
       .from('sessions').select('id,title,session_type,scheduled_at,status,meeting_url,internships:internship_id(title)')
       .in('internship_id', internshipIds)
-      .eq('is_hidden', false).gte('scheduled_at', new Date().toISOString())
+      .eq('is_hidden', false)
+      .or(levelOrFilter(access.levelIds))
+      .gte('scheduled_at', new Date().toISOString())
       .order('scheduled_at', { ascending: true }).limit(5);
     upcoming = data ?? [];
   }
 
   let pending: any[] = [];
-  if (internshipIds.length) {
+  if (internshipIds.length && access) {
     const { data: allA } = await supabase
       .from('assignments').select('id,title,kind,due_at,max_score,internships:internship_id(title)')
       .in('internship_id', internshipIds)
-      .eq('is_hidden', false).order('due_at', { ascending: true, nullsFirst: false });
+      .eq('is_hidden', false)
+      .or(levelOrFilter(access.levelIds))
+      .order('due_at', { ascending: true, nullsFirst: false });
     const { data: mySubs } = await supabase
       .from('submissions').select('assignment_id').eq('student_id', me.userId);
     const submittedIds = new Set((mySubs ?? []).map((s: any) => s.assignment_id));

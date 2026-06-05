@@ -21,13 +21,21 @@ export default async function StudentSessionDetailPage({
 
   const { data: session } = await supabase
     .from('sessions')
-    .select(
-      '*, internships:internship_id (id, title), levels:level_id (level_number, title)',
-    )
+    .select('*, internships:internship_id (id, title), levels:level_id (level_number, title)')
     .eq('id', params.id)
     .single();
 
   if (!session) notFound();
+
+  // Block hidden sessions and level-gated sessions the student hasn't reached
+  if (me.profile.role === 'student') {
+    if (session.is_hidden) notFound();
+    if (session.level_id) {
+      const { getAccessibleLevelIds } = await import('@/lib/level-access');
+      const access = await getAccessibleLevelIds(me.userId);
+      if (!access || !access.levelIds.includes(session.level_id)) notFound();
+    }
+  }
 
   const { data: materials } = await supabase
     .from('session_materials')

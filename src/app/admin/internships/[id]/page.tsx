@@ -114,6 +114,12 @@ async function promoteOrFilter(formData: FormData) {
     await supabase.from('enrollments')
       .update({ current_level: enr.current_level + 1, status: 'active' })
       .eq('id', enr.id);
+  } else if (action === 'demote') {
+    if (enr.current_level > 1) {
+      await supabase.from('enrollments')
+        .update({ current_level: enr.current_level - 1, status: 'active' })
+        .eq('id', enr.id);
+    }
   } else if (action === 'filter') {
     await supabase.from('enrollments')
       .update({ status: 'filtered' })
@@ -502,13 +508,24 @@ export default async function InternshipDetailPage({
                         <span className="font-bold font-mono" style={{ color: scoreColor }}>{combined.toFixed(2)}%</span>
                       </td>
                       <td>
-                        <div className="flex gap-1">
+                        <div className="flex gap-1 flex-wrap">
                           {e.current_level < internship.total_levels && (
                             <form action={promoteOrFilter}>
                               <input type="hidden" name="enrollment_id" value={e.student_id}/>
                               <input type="hidden" name="internship_id" value={internship.id}/>
                               <input type="hidden" name="action" value="promote"/>
                               <button type="submit" className="btn btn-ghost text-xs">↑ L{e.current_level + 1}</button>
+                            </form>
+                          )}
+                          {e.current_level > 1 && (
+                            <form action={promoteOrFilter}>
+                              <input type="hidden" name="enrollment_id" value={e.student_id}/>
+                              <input type="hidden" name="internship_id" value={internship.id}/>
+                              <input type="hidden" name="action" value="demote"/>
+                              <button type="submit" className="btn btn-ghost text-xs" style={{ color: 'var(--ink-500)' }}
+                                title="Undo promotion — move back one level">
+                                ↓ L{e.current_level - 1}
+                              </button>
                             </form>
                           )}
                           {e.status !== 'filtered' && (

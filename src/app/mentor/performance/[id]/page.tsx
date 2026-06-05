@@ -9,6 +9,7 @@ import { HorizontalBarChart, DonutChart } from '@/components/Charts';
 import { ArrowLeft, Trophy, Users, TrendingUp, Calendar, Upload, Layers, Star } from 'lucide-react';
 import { formatDateTime, computeRanks } from '@/lib/utils';
 import { LevelScoreBadges } from '@/components/LevelScores';
+import PerformanceTable from '@/components/PerformanceTable';
 
 export const dynamic = 'force-dynamic';
 
@@ -40,7 +41,7 @@ export default async function MentorInternshipPerformancePage({
   if (!internship) notFound();
 
   // PARALLEL FETCH for free-tier speed
-  const [leaderboardRes, quizAggRes, sessionsCountRes, assignmentsCountRes, levelScoresRes] = await Promise.all([
+  const [leaderboardRes, quizAggRes, sessionsCountRes, assignmentsCountRes, levelScoresRes, levelsRes] = await Promise.all([
     supabase
       .from('v_internship_leaderboard')
       .select('*')
@@ -62,8 +63,14 @@ export default async function MentorInternshipPerformancePage({
       .from('v_student_level_scores')
       .select('student_id, level_number, level_title, level_score, pass_threshold, reached, graded_count, total_count')
       .eq('internship_id', params.id),
+    supabase
+      .from('levels')
+      .select('id, level_number, title, pass_threshold')
+      .eq('internship_id', params.id)
+      .order('level_number'),
   ]);
   const baseRows = leaderboardRes.data ?? [];
+  const levels = levelsRes.data ?? [];
   const totalSessions = sessionsCountRes.count;
   const totalAssignments = assignmentsCountRes.count;
 
@@ -82,6 +89,15 @@ export default async function MentorInternshipPerformancePage({
   for (const ls of levelScoresRes.data ?? []) {
     if (!levelScoreMap.has(ls.student_id)) levelScoreMap.set(ls.student_id, new Map());
     levelScoreMap.get(ls.student_id)!.set(ls.level_number, ls);
+  }
+
+  // Serialise levelScoreMap to plain object for client component
+  const levelScoreObj: Record<string, Record<number, any>> = {};
+  for (const [sid, levelMap] of levelScoreMap.entries()) {
+    levelScoreObj[sid] = {};
+    for (const [ln, ls] of levelMap.entries()) {
+      levelScoreObj[sid][ln] = ls;
+    }
   }
 
   const unsortedRows = baseRows
@@ -226,157 +242,14 @@ export default async function MentorInternshipPerformancePage({
         </div>
       )}
 
-      {rows && rows.length > 0 ? (
-        <div className="card p-0 overflow-hidden table-wrap">
-          <table className="table">
-            <thead>
-              <tr>
-                <th style={{ width: '50px' }}>#</th>
-                <th>Student</th>
-                <th>Level</th>
-                <th>Status</th>
-                <th>Assignments</th>
-                <th>Quiz</th>
-                <th>Level Scores</th>
-                <th>Combined</th>
-                <th>Attendance</th>
-                <th>Submissions</th>
-                <th>Graded</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((r: any) => {
-                const score = Number(r.total_score ?? 0);
-                const quizScore = Number(r.quiz_score ?? 0);
-                const combined = Number(r.combined ?? 0);
-                const rank = r.rank;
-                const attended = Number(r.attended_sessions ?? 0);
-                const submitted = submittedMap.get(r.student_id) ?? 0;
-                const graded = Number(r.graded_submissions ?? 0);
-                const attendancePct = totalSessions && totalSessions > 0 ? ((attended / totalSessions) * 100).toFixed(0) : '0';
-                const submissionPct = totalAssignments && totalAssignments > 0 ? ((submitted / totalAssignments) * 100).toFixed(0) : '0';
-                const initials = (r.full_name ?? r.email ?? '?').split(' ').map((w: string) => w[0]).slice(0, 2).join('').toUpperCase();
-                const AVATAR_COLORS = ['#8B5CF6','#06B6D4','#10B981','#F59E0B','#EF4444','#3B82F6','#EC4899','#14B8A6','#F97316','#6366F1'];
-                const avatarColor = AVATAR_COLORS[rank % AVATAR_COLORS.length];
-                const scoreColor = combined >= 90 ? '#10B981' : combined >= 75 ? '#3B82F6' : combined >= 50 ? '#F59E0B' : '#EF4444';
-                const rankBadge = rank === 1
-                  ? { bg: 'linear-gradient(135deg,#fbbf24,#f59e0b)', color: 'white', label: '🥇' }
-                  : rank === 2
-                  ? { bg: 'linear-gradient(135deg,#94a3b8,#64748b)', color: 'white', label: '🥈' }
-                  : rank === 3
-                  ? { bg: 'linear-gradient(135deg,#f97316,#ea580c)', color: 'white', label: '🥉' }
-                  : { bg: 'var(--ink-100)', color: 'var(--ink-600)', label: String(rank) };
-                return (
-                  <tr key={r.student_id}>
-                    <td style={{ padding: '10px 12px', width: 56 }}>
-                      <div className="w-8 h-8 rounded-lg flex items-center justify-center font-bold text-xs"
-                        style={{ background: rankBadge.bg, color: rankBadge.color }}>
-                        {rank <= 3 ? rankBadge.label : rank}
-                      </div>
-                    </td>
-                    <td>
-                      <div className="flex items-center gap-2.5">
-                        <div className="w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-xs shrink-0"
-                          style={{ background: avatarColor, boxShadow: `0 2px 8px ${avatarColor}55` }}>
-                          {initials}
-                        </div>
-                        <div>
-                          <Link href={`/mentor/students/${r.student_id}`} className="link font-medium">{r.full_name ?? '—'}</Link>
-                          <p className="text-xs" style={{ color: 'var(--ink-500)' }}>{r.email}</p>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="font-mono text-xs">L{r.current_level}</td>
-                    <td>
-                      <Pill
-                        tone={
-                          r.status === 'active' ? 'blue'
-                            : r.status === 'promoted' ? 'green'
-                              : r.status === 'filtered' ? 'red' : 'accent'
-                        }
-                      >
-                        {r.status}
-                      </Pill>
-                    </td>
-                    <td>
-                      <span className="font-mono">{score.toFixed(1)}%</span>
-                    </td>
-                    <td>
-                      {r.quiz_answered > 0 ? (
-                        <>
-                          <span className="font-mono text-sm">{quizScore.toFixed(0)}%</span>
-                          <p className="text-xs" style={{ color: 'var(--ink-500)' }}>
-                            {r.quiz_correct}/{r.quiz_answered}
-                          </p>
-                        </>
-                      ) : (
-                        <span className="text-xs" style={{ color: 'var(--ink-500)' }}>—</span>
-                      )}
-                    </td>
-                    <td>
-                      <div className="flex items-center gap-3">
-                        <span
-                          className="font-mono font-bold"
-                          style={{
-                            color:
-                              combined >= 70
-                                ? 'var(--green-700)'
-                                : combined >= 40
-                                  ? 'var(--accent)'
-                                  : 'var(--red-700)',
-                          }}
-                        >
-                          {combined.toFixed(2)}%
-                        </span>
-                        <div className="w-20 h-1.5 rounded-full overflow-hidden" style={{ background: 'var(--ink-100)' }}>
-                          <div className="h-full" style={{
-                            width: `${Math.min(100, combined)}%`,
-                            background: combined >= 70 ? 'var(--green-500)' : combined >= 40 ? 'var(--accent)' : 'var(--red-500)',
-                          }} />
-                        </div>
-                      </div>
-                    </td>
-                    <td>
-                      <div className="flex items-center gap-3">
-                        <span className="font-mono text-sm">{attendancePct}%</span>
-                        <span className="text-xs" style={{ color: 'var(--ink-500)' }}>
-                          {attended}/{totalSessions ?? 0}
-                        </span>
-                      </div>
-                    </td>
-                    <td>
-                      <div className="flex items-center gap-3">
-                        <span className="font-mono text-sm">{submissionPct}%</span>
-                        <span className="text-xs" style={{ color: 'var(--ink-500)' }}>
-                          {submitted}/{totalAssignments ?? 0}
-                        </span>
-                      </div>
-                    </td>
-                    <td className="font-mono text-sm">{graded}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      ) : (
-        <EmptyState
-          title="No students enrolled yet"
-          hint="Once students are enrolled, their performance will appear here."
-        />
-      )}
-
-      <div className="mt-6 text-xs flex gap-6 flex-wrap" style={{ color: 'var(--ink-500)' }}>
-        <span className="flex items-center gap-1">
-          <TrendingUp size={12} /> Score: weighted average of graded submissions
-        </span>
-        <span className="flex items-center gap-1">
-          <Calendar size={12} /> Attendance: sessions marked present or partial
-        </span>
-        <span className="flex items-center gap-1">
-          <Users size={12} /> Click a student in the cohort to drill in (coming soon)
-        </span>
-      </div>
+      <PerformanceTable
+        rows={rows}
+        levels={levels}
+        levelScoreMap={levelScoreObj}
+        totalSessions={sessionsCountRes.count ?? 0}
+        totalAssignments={assignmentsCountRes.count ?? 0}
+        internshipId={params.id}
+      />
     </>
   );
 }

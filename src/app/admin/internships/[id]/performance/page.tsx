@@ -251,133 +251,140 @@ export default async function InternshipPerformancePage({
           <table className="table">
             <thead>
               <tr>
-                <th style={{ width: '50px' }}>#</th>
+                <th style={{ width: 52 }}>#</th>
                 <th>Student</th>
                 <th>Level</th>
-                <th>Status</th>
-                <th>Assignments</th>
-                <th>Quiz</th>
-                <th>Level Scores</th>
-                <th>Combined</th>
-                <th>Attendance</th>
-                <th>Submissions</th>
-                <th>Graded</th>
+                <th style={{ textAlign: 'right' }}>Assignments</th>
+                <th style={{ textAlign: 'right' }}>Quiz</th>
+                <th style={{ textAlign: 'center', minWidth: 180 }}>Per-level scores</th>
+                <th style={{ textAlign: 'right', minWidth: 130 }}>Combined ▾</th>
+                <th style={{ textAlign: 'right' }}>Attendance</th>
+                <th style={{ textAlign: 'right' }}>Submitted</th>
               </tr>
             </thead>
             <tbody>
               {rows.map((r: any) => {
-                const score = Number(r.total_score ?? 0);
-                const quizScore = Number(r.quiz_score ?? 0);
-                const combined = Number(r.combined ?? 0);
-                const rank = r.rank;
-                const attended = Number(r.attended_sessions ?? 0);
+                const score     = Number(r.total_score ?? 0);
+                const quizScore = Number(r.quiz_score  ?? 0);
+                const combined  = Number(r.combined    ?? 0);
+                const rank      = r.rank;
+                const attended  = Number(r.attended_sessions ?? 0);
                 const submitted = submittedMap.get(r.student_id) ?? 0;
-                const graded = Number(r.graded_submissions ?? 0);
-                const attendancePct = totalSessions && totalSessions > 0 ? ((attended / totalSessions) * 100).toFixed(0) : '0';
-                const submissionPct = totalAssignments && totalAssignments > 0 ? ((submitted / totalAssignments) * 100).toFixed(0) : '0';
+                const attendancePct = totalSessions ? Math.round((attended / totalSessions) * 100) : 0;
+                const submissionPct = totalAssignments ? Math.round((submitted / totalAssignments) * 100) : 0;
 
-                const initials = (r.full_name ?? r.email ?? '?').split(' ').map((w: string) => w[0]).slice(0, 2).join('').toUpperCase();
-                const AVATAR_COLORS = ['#8B5CF6','#06B6D4','#10B981','#F59E0B','#EF4444','#3B82F6','#EC4899','#14B8A6','#F97316','#6366F1'];
-                const avatarColor = AVATAR_COLORS[rank % AVATAR_COLORS.length];
-                const scoreColor = combined >= 90 ? '#10B981' : combined >= 75 ? '#3B82F6' : combined >= 50 ? '#F59E0B' : '#EF4444';
-                const rankBadge = rank === 1
+                const initials   = (r.full_name ?? r.email ?? '?').split(' ').map((w: string) => w[0]).slice(0, 2).join('').toUpperCase();
+                const COLORS     = ['#8B5CF6','#06B6D4','#10B981','#F59E0B','#EF4444','#3B82F6','#EC4899','#14B8A6','#F97316','#6366F1'];
+                const avatarColor = COLORS[rank % COLORS.length];
+                const scoreColor  = combined >= 90 ? '#10B981' : combined >= 75 ? '#3B82F6' : combined >= 50 ? '#F59E0B' : '#EF4444';
+                const rankBadge   = rank === 1
                   ? { bg: 'linear-gradient(135deg,#fbbf24,#f59e0b)', color: 'white', label: '🥇' }
-                  : rank === 2
-                  ? { bg: 'linear-gradient(135deg,#94a3b8,#64748b)', color: 'white', label: '🥈' }
-                  : rank === 3
-                  ? { bg: 'linear-gradient(135deg,#f97316,#ea580c)', color: 'white', label: '🥉' }
+                  : rank === 2 ? { bg: 'linear-gradient(135deg,#94a3b8,#64748b)', color: 'white', label: '🥈' }
+                  : rank === 3 ? { bg: 'linear-gradient(135deg,#f97316,#ea580c)', color: 'white', label: '🥉' }
                   : { bg: 'var(--ink-100)', color: 'var(--ink-600)', label: String(rank) };
+
+                // Get this student's level scores
+                const myLevelScores = Array.from(levelScoreMap.get(r.student_id)?.values() ?? [])
+                  .sort((a: any, b: any) => a.level_number - b.level_number) as any[];
 
                 return (
                   <tr key={r.student_id}>
-                    <td style={{ padding: '10px 12px', width: 56 }}>
-                      <div
-                        className="w-8 h-8 rounded-lg flex items-center justify-center font-bold text-xs"
-                        style={{ background: rankBadge.bg, color: rankBadge.color }}
-                      >
+                    {/* Rank */}
+                    <td style={{ padding: '10px 12px' }}>
+                      <div className="w-8 h-8 rounded-lg flex items-center justify-center font-bold text-xs"
+                        style={{ background: rankBadge.bg, color: rankBadge.color }}>
                         {rank <= 3 ? rankBadge.label : rank}
                       </div>
                     </td>
+
+                    {/* Student */}
                     <td>
                       <div className="flex items-center gap-2.5">
-                        <div
-                          className="w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-xs shrink-0"
-                          style={{ background: avatarColor, boxShadow: `0 2px 8px ${avatarColor}55` }}
-                        >
+                        <div className="w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-xs shrink-0"
+                          style={{ background: avatarColor, boxShadow: `0 2px 8px ${avatarColor}55` }}>
                           {initials}
                         </div>
                         <div>
-                          <Link href={`/admin/students/${r.student_id}`} className="link font-medium">
+                          <Link href={`/admin/students/${r.student_id}`} className="link font-medium text-sm">
                             {r.full_name ?? '—'}
                           </Link>
                           <p className="text-xs" style={{ color: 'var(--ink-500)' }}>{r.email}</p>
                         </div>
                       </div>
                     </td>
-                    <td className="font-mono text-xs">L{r.current_level}</td>
+
+                    {/* Level + status */}
                     <td>
-                      <Pill
-                        tone={
-                          r.status === 'active'
-                            ? 'blue'
-                            : r.status === 'promoted'
-                              ? 'green'
-                              : r.status === 'filtered'
-                                ? 'red'
-                                : 'accent'
-                        }
-                      >
+                      <p className="font-mono text-xs font-bold">L{r.current_level}</p>
+                      <Pill tone={r.status === 'active' ? 'blue' : r.status === 'promoted' ? 'green' : r.status === 'filtered' ? 'red' : 'accent'}>
                         {r.status}
                       </Pill>
                     </td>
-                    <td>
-                      <span className="font-mono">{score.toFixed(1)}%</span>
+
+                    {/* Assignments overall */}
+                    <td style={{ textAlign: 'right' }}>
+                      <span className="font-mono text-sm">{score.toFixed(1)}%</span>
                     </td>
-                    <td>
-                      {r.quiz_answered > 0 ? (
-                        <>
+
+                    {/* Quiz */}
+                    <td style={{ textAlign: 'right' }}>
+                      {(r.quiz_total ?? 0) > 0 ? (
+                        <div>
                           <span className="font-mono text-sm">{quizScore.toFixed(0)}%</span>
                           <p className="text-xs" style={{ color: 'var(--ink-500)' }}>
-                            {r.quiz_correct}/{r.quiz_answered}
+                            {r.quiz_correct}/{r.quiz_total}
                           </p>
-                        </>
-                      ) : (
-                        <span className="text-xs" style={{ color: 'var(--ink-500)' }}>—</span>
-                      )}
-                    </td>
-                    <td style={{ minWidth: 200 }}>
-                      <LevelScoreBadges
-                        levels={Array.from(levelScoreMap.get(r.student_id)?.values() ?? [])
-                          .sort((a: any, b: any) => a.level_number - b.level_number)}
-                      />
-                    </td>
-                    <td>
-                      <div className="flex items-center gap-3">
-                        <span className="font-mono font-bold" style={{ color: scoreColor }}>
-                          {combined.toFixed(2)}%
-                        </span>
-                        <div className="w-20 h-1.5 rounded-full overflow-hidden" style={{ background: 'var(--ink-100)' }}>
-                          <div className="h-full" style={{ width: `${Math.min(100, combined)}%`, background: scoreColor }} />
                         </div>
+                      ) : <span style={{ color: 'var(--ink-300)' }}>—</span>}
+                    </td>
+
+                    {/* Per-level score pills */}
+                    <td style={{ textAlign: 'center' }}>
+                      <div className="flex flex-wrap gap-1 justify-center">
+                        {myLevelScores.length > 0 ? myLevelScores.map((ls: any) => {
+                          const lPct   = ls.level_score ?? 0;
+                          const passed = lPct >= (ls.pass_threshold ?? 60);
+                          const locked = !ls.reached;
+                          const lColor = locked ? '#94a3b8' : passed ? '#10b981' : lPct >= (ls.pass_threshold ?? 60) * 0.75 ? '#f59e0b' : '#ef4444';
+                          return (
+                            <div key={ls.level_number}
+                              title={`L${ls.level_number}: ${lPct.toFixed(1)}% (pass ${ls.pass_threshold}%) · ${ls.graded_count}/${ls.total_count} graded`}
+                              className="rounded px-1.5 py-0.5 text-center"
+                              style={{
+                                background: locked ? 'var(--ink-50)' : `${lColor}18`,
+                                border: `1px solid ${locked ? 'var(--ink-200)' : `${lColor}44`}`,
+                                minWidth: 46,
+                              }}>
+                              <p className="text-[9px] font-bold" style={{ color: 'var(--ink-400)' }}>L{ls.level_number}</p>
+                              <p className="font-mono font-bold text-xs" style={{ color: locked ? 'var(--ink-300)' : lColor }}>
+                                {locked ? '—' : `${lPct.toFixed(0)}%`}
+                              </p>
+                              {!locked && passed && <p style={{ fontSize: '.55rem', color: lColor }}>✓</p>}
+                            </div>
+                          );
+                        }) : <span style={{ color: 'var(--ink-300)', fontSize: '.8rem' }}>—</span>}
                       </div>
                     </td>
-                    <td>
-                      <div className="flex items-center gap-3">
-                        <span className="font-mono text-sm">{attendancePct}%</span>
-                        <span className="text-xs" style={{ color: 'var(--ink-500)' }}>
-                          {attended}/{totalSessions ?? 0}
-                        </span>
+
+                    {/* Combined with bar */}
+                    <td style={{ textAlign: 'right' }}>
+                      <p className="font-bold" style={{ color: scoreColor }}>{combined.toFixed(2)}%</p>
+                      <div className="h-1.5 rounded-full overflow-hidden mt-1 ml-auto" style={{ width: 72, background: 'var(--ink-100)' }}>
+                        <div className="h-full rounded-full" style={{ width: `${Math.min(100, combined)}%`, background: scoreColor }}/>
                       </div>
                     </td>
-                    <td>
-                      <div className="flex items-center gap-3">
-                        <span className="font-mono text-sm">{submissionPct}%</span>
-                        <span className="text-xs" style={{ color: 'var(--ink-500)' }}>
-                          {submitted}/{totalAssignments ?? 0}
-                        </span>
-                      </div>
+
+                    {/* Attendance */}
+                    <td style={{ textAlign: 'right' }}>
+                      <span className="font-mono text-sm">{attendancePct}%</span>
+                      <p className="text-xs" style={{ color: 'var(--ink-500)' }}>{attended}/{totalSessions ?? 0}</p>
                     </td>
-                    <td className="font-mono text-sm">{graded}</td>
+
+                    {/* Submitted */}
+                    <td style={{ textAlign: 'right' }}>
+                      <span className="font-mono text-sm">{submissionPct}%</span>
+                      <p className="text-xs" style={{ color: 'var(--ink-500)' }}>{submitted}/{totalAssignments ?? 0}</p>
+                    </td>
                   </tr>
                 );
               })}
@@ -387,7 +394,7 @@ export default async function InternshipPerformancePage({
       ) : (
         <EmptyState
           title="No students enrolled yet"
-          hint="Enrol students from the internship detail page to see their performance."
+          hint="Enrol students from the internship detail page."
         />
       )}
 

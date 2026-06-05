@@ -8,6 +8,7 @@ import PrintHeader from '@/components/PrintHeader';
 import { HorizontalBarChart, DonutChart } from '@/components/Charts';
 import { ArrowLeft, Trophy, Users, TrendingUp, Calendar } from 'lucide-react';
 import { formatDateTime, computeRanks } from '@/lib/utils';
+import { LevelScoreBadges } from '@/components/LevelScores';
 
 export const dynamic = 'force-dynamic';
 
@@ -27,8 +28,8 @@ export default async function InternshipPerformancePage({
 
   if (!internship) notFound();
 
-  // PARALLEL FETCH: leaderboard + quiz aggregate + counts — all in one wave
-  const [leaderboardRes, quizAggRes, sessionsCountRes, assignmentsCountRes] = await Promise.all([
+  // PARALLEL FETCH: leaderboard + quiz aggregate + counts + level scores
+  const [leaderboardRes, quizAggRes, sessionsCountRes, assignmentsCountRes, levelScoresRes, levelsRes] = await Promise.all([
     supabase
       .from('v_internship_leaderboard')
       .select('*')
@@ -46,8 +47,25 @@ export default async function InternshipPerformancePage({
       .from('assignments')
       .select('id', { count: 'exact', head: true })
       .eq('internship_id', params.id),
+    supabase
+      .from('v_student_level_scores')
+      .select('student_id, level_number, level_title, level_score, pass_threshold, reached, graded_count, total_count')
+      .eq('internship_id', params.id),
+    supabase
+      .from('levels')
+      .select('id, level_number, title, pass_threshold')
+      .eq('internship_id', params.id)
+      .order('level_number'),
   ]);
   const baseRows = leaderboardRes.data ?? [];
+  const levels = levelsRes.data ?? [];
+
+  // Build level score map: student_id → level_number → score data
+  const levelScoreMap = new Map<string, Map<number, any>>();
+  for (const ls of levelScoresRes.data ?? []) {
+    if (!levelScoreMap.has(ls.student_id)) levelScoreMap.set(ls.student_id, new Map());
+    levelScoreMap.get(ls.student_id)!.set(ls.level_number, ls);
+  }
   const totalSessions = sessionsCountRes.count;
   const totalAssignments = assignmentsCountRes.count;
 
@@ -239,6 +257,7 @@ export default async function InternshipPerformancePage({
                 <th>Status</th>
                 <th>Assignments</th>
                 <th>Quiz</th>
+                <th>Level Scores</th>
                 <th>Combined</th>
                 <th>Attendance</th>
                 <th>Submissions</th>
@@ -323,10 +342,14 @@ export default async function InternshipPerformancePage({
                           </p>
                         </>
                       ) : (
-                        <span className="text-xs" style={{ color: 'var(--ink-500)' }}>
-                          —
-                        </span>
+                        <span className="text-xs" style={{ color: 'var(--ink-500)' }}>—</span>
                       )}
+                    </td>
+                    <td style={{ minWidth: 200 }}>
+                      <LevelScoreBadges
+                        levels={Array.from(levelScoreMap.get(r.student_id)?.values() ?? [])
+                          .sort((a: any, b: any) => a.level_number - b.level_number)}
+                      />
                     </td>
                     <td>
                       <div className="flex items-center gap-3">

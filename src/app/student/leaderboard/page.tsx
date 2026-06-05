@@ -4,6 +4,7 @@ import { requireRole } from '@/lib/auth';
 import { PageHeader, Stat, EmptyState, Pill } from '@/components/ui';
 import { Trophy, Medal, Award, Crown, TrendingUp } from 'lucide-react';
 import { computeRanks } from '@/lib/utils';
+import { LevelScoreBadges } from '@/components/LevelScores';
 
 export const dynamic = 'force-dynamic';
 
@@ -26,7 +27,7 @@ export default async function StudentLeaderboardPage() {
   // Enrolled internships
   const { data: enrollments } = await supabase
     .from('enrollments')
-    .select('internship_id, internships:internship_id (id, title, total_levels)')
+    .select('internship_id, current_level, internships:internship_id (id, title, total_levels)')
     .eq('student_id', me.userId);
 
   const internships = (enrollments ?? [])
@@ -53,7 +54,7 @@ export default async function StudentLeaderboardPage() {
   const internshipIds = internships.map((i: any) => i.id);
 
   // PARALLEL FETCH: all the heavy data in one round-trip wave instead of N sequential queries.
-  const [leaderboardData, quizData, assignmentsData] = await Promise.all([
+  const [leaderboardData, quizData, assignmentsData, myLevelScoresData] = await Promise.all([
     // 1. Leaderboard rows for all internships at once
     supabase
       .from('v_internship_leaderboard')
@@ -63,16 +64,28 @@ export default async function StudentLeaderboardPage() {
     // 2. Quiz aggregates for all internships at once
     supabase
       .from('v_student_quiz_aggregate')
-      .select(
-        'student_id, internship_id, quiz_score_pct, total_questions, questions_answered, questions_correct',
-      )
+      .select('student_id, internship_id, quiz_score_pct, total_questions, questions_answered, questions_correct')
       .in('internship_id', internshipIds),
     // 3. Every assignment in every enrolled internship
     supabase
       .from('assignments')
       .select('id, title, kind, max_score, internship_id')
       .in('internship_id', internshipIds),
+    // 4. MY per-level scores
+    supabase
+      .from('v_student_level_scores')
+      .select('internship_id, level_number, level_title, level_score, pass_threshold, reached, graded_count, total_count')
+      .eq('student_id', me.userId)
+      .in('internship_id', internshipIds),
   ]);
+
+  // Build my level scores map: internship_id → sorted level array
+  const myLevelsByInternship = new Map<string, any[]>();
+  for (const ls of myLevelScoresData.data ?? []) {
+    if (!myLevelsByInternship.has(ls.internship_id)) myLevelsByInternship.set(ls.internship_id, []);
+    myLevelsByInternship.get(ls.internship_id)!.push(ls);
+  }
+  for (const [, arr] of myLevelsByInternship) arr.sort((a, b) => a.level_number - b.level_number);
 
   const allAssignments = assignmentsData.data ?? [];
   const allAssignmentIds = allAssignments.map((a: any) => a.id);
@@ -233,6 +246,55 @@ export default async function StudentLeaderboardPage() {
                   </div>
                 </div>
               )}
+
+              {/* ── MY LEVEL BREAKDOWN ── */}
+              {(() => {
+                const myLevels = myLevelsByInternship.get(i.id) ?? [];
+                if (!myLevels.length) return null;
+                const myEnrollment = enrollments?.find((e: any) => e.internship_id === i.id);
+                return (
+                  <div className="card mb-5">
+                    <p className="eyebrow mb-3">My level scores</p>
+                    <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${Math.min(myLevels.length, 3)}, 1fr)` }}>
+                      {myLevels.map((l: any) => {
+                        const pct = l.level_score;
+                        const passed = pct >= l.pass_threshold;
+                        const locked = !l.reached;
+                        const isCurrent = l.level_number === myEnrollment?.current_level;
+                        const color = locked ? '#94a3b8' : passed ? '#10b981' : pct >= l.pass_threshold * 0.75 ? '#f59e0b' : '#ef4444';
+                        return (
+                          <div key={l.level_number} className="rounded-xl p-3 text-center"
+                            style={{
+                              background: isCurrent ? 'linear-gradient(135deg,rgba(99,102,241,.1),rgba(99,102,241,.04))' : locked ? 'var(--ink-50)' : `${color}0d`,
+                              border: `1.5px solid ${isCurrent ? 'var(--accent)' : locked ? 'var(--ink-200)' : `${color}44`}`,
+                              opacity: locked ? 0.65 : 1,
+                            }}>
+                            <p className="text-xs font-bold mb-1" style={{ color: locked ? 'var(--ink-400)' : 'var(--ink-600)' }}>
+                              Level {l.level_number}
+                              {isCurrent && <span className="ml-1" style={{ color: 'var(--accent)' }}>●</span>}
+                            </p>
+                            <p className="font-black" style={{ fontSize: '1.4rem', color: locked ? 'var(--ink-300)' : color, letterSpacing: '-.02em' }}>
+                              {locked ? '—' : `${pct.toFixed(0)}%`}
+                            </p>
+                            {!locked && (
+                              <>
+                                <div className="h-1.5 rounded-full overflow-hidden mt-2 mx-auto" style={{ background: 'var(--ink-100)', width: '80%' }}>
+                                  <div className="h-full rounded-full" style={{ width: `${Math.min(100, pct)}%`, background: color }}/>
+                                </div>
+                                <p className="text-[10px] mt-1.5" style={{ color: 'var(--ink-400)' }}>
+                                  {l.graded_count}/{l.total_count} graded · pass {l.pass_threshold}%
+                                </p>
+                                {passed && <p className="text-[10px] font-bold mt-0.5" style={{ color }}>✓ Passed</p>}
+                              </>
+                            )}
+                            {locked && <p className="text-[10px] mt-1" style={{ color: 'var(--ink-400)' }}>🔒 Not reached</p>}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })()}
 
               {/* ── PODIUM ── */}
               {top5.length > 0 && (() => {

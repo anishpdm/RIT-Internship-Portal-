@@ -8,6 +8,7 @@ import PrintHeader from '@/components/PrintHeader';
 import { HorizontalBarChart, DonutChart } from '@/components/Charts';
 import { ArrowLeft, Trophy, Users, TrendingUp, Calendar, Upload, Layers, Star } from 'lucide-react';
 import { formatDateTime, computeRanks } from '@/lib/utils';
+import { LevelScoreBadges } from '@/components/LevelScores';
 
 export const dynamic = 'force-dynamic';
 
@@ -39,7 +40,7 @@ export default async function MentorInternshipPerformancePage({
   if (!internship) notFound();
 
   // PARALLEL FETCH for free-tier speed
-  const [leaderboardRes, quizAggRes, sessionsCountRes, assignmentsCountRes] = await Promise.all([
+  const [leaderboardRes, quizAggRes, sessionsCountRes, assignmentsCountRes, levelScoresRes] = await Promise.all([
     supabase
       .from('v_internship_leaderboard')
       .select('*')
@@ -57,6 +58,10 @@ export default async function MentorInternshipPerformancePage({
       .from('assignments')
       .select('id', { count: 'exact', head: true })
       .eq('internship_id', params.id),
+    supabase
+      .from('v_student_level_scores')
+      .select('student_id, level_number, level_title, level_score, pass_threshold, reached, graded_count, total_count')
+      .eq('internship_id', params.id),
   ]);
   const baseRows = leaderboardRes.data ?? [];
   const totalSessions = sessionsCountRes.count;
@@ -70,6 +75,13 @@ export default async function MentorInternshipPerformancePage({
       total: Number((q as any).total_questions ?? 0),
       answered: Number((q as any).questions_answered ?? 0),
     });
+  }
+
+  // Build level score map: student_id → level_number → score data
+  const levelScoreMap = new Map<string, Map<number, any>>();
+  for (const ls of levelScoresRes.data ?? []) {
+    if (!levelScoreMap.has(ls.student_id)) levelScoreMap.set(ls.student_id, new Map());
+    levelScoreMap.get(ls.student_id)!.set(ls.level_number, ls);
   }
 
   const unsortedRows = baseRows
@@ -225,6 +237,7 @@ export default async function MentorInternshipPerformancePage({
                 <th>Status</th>
                 <th>Assignments</th>
                 <th>Quiz</th>
+                <th>Level Scores</th>
                 <th>Combined</th>
                 <th>Attendance</th>
                 <th>Submissions</th>

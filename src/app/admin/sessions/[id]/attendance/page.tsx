@@ -20,33 +20,37 @@ export default async function AttendanceMarkingPage({
 
   const { data: session } = await supabase
     .from('sessions')
-    .select(
-      'id, title, scheduled_at, duration_minutes, session_type, internship_id, internships:internship_id (title)',
-    )
+    .select('id, title, scheduled_at, duration_minutes, session_type, internship_id, level_id, internships:internship_id (title), levels:level_id (level_number, title)')
     .eq('id', params.id)
     .single();
   if (!session) notFound();
 
   if (me.profile.role === 'mentor') {
     const { data: ma } = await supabase
-      .from('mentor_assignments')
-      .select('id')
-      .eq('mentor_id', me.userId)
-      .eq('internship_id', session.internship_id)
-      .maybeSingle();
+      .from('mentor_assignments').select('id')
+      .eq('mentor_id', me.userId).eq('internship_id', session.internship_id).maybeSingle();
     if (!ma) notFound();
   }
 
   const basePath = me.profile.role === 'admin' ? 'admin' : 'mentor';
   const admin = createAdminClient();
 
-  // Fetch enrollments + attendance + all profiles in one wave.
-  // SELECT * on attendance always works regardless of which columns exist.
+  const sessionLevel = (session as any).levels?.level_number ?? null;
+
+  // Fetch enrollments — filtered by level if session is level-gated.
+  // A Level 2 session only shows students who have reached Level 2+ (current_level >= 2).
+  let enrollmentsQuery = admin
+    .from('enrollments')
+    .select('student_id, current_level, status, profiles:student_id (full_name, email)')
+    .eq('internship_id', session.internship_id)
+    .neq('status', 'filtered');
+
+  if (sessionLevel) {
+    enrollmentsQuery = enrollmentsQuery.gte('current_level', sessionLevel);
+  }
+
   const [enrollmentsRes, attendanceRes] = await Promise.all([
-    admin
-      .from('enrollments')
-      .select('student_id, current_level, profiles:student_id (full_name, email)')
-      .eq('internship_id', session.internship_id),
+    enrollmentsQuery,
     admin.from('attendance').select('*').eq('session_id', session.id),
   ]);
 
@@ -101,14 +105,31 @@ export default async function AttendanceMarkingPage({
         title={session.title}
         subtitle={`${formatDateTime(session.scheduled_at)} · ${session.duration_minutes}m · manual marking`}
         actions={
-          <Link
-            href={`/${basePath}/sessions/${session.id}`}
-            className="btn btn-ghost"
-          >
-            <ArrowLeft size={16} /> Back to session
+          <Link href={`/${basePath}/sessions/${session.id}`} className="btn btn-ghost">
+            <ArrowLeft size={16}/> Back to session
           </Link>
         }
       />
+
+      {/* Level filter notice */}
+      {sessionLevel && (
+        <div className="rounded-xl px-4 py-3 mb-5 flex items-center gap-3"
+          style={{ background: 'linear-gradient(135deg,rgba(99,102,241,.1),rgba(99,102,241,.04))', border: '1.5px solid rgba(99,102,241,.25)' }}>
+          <div className="w-9 h-9 rounded-xl flex items-center justify-center font-bold text-white text-sm shrink-0"
+            style={{ background: 'linear-gradient(135deg,var(--accent),#818cf8)' }}>
+            {sessionLevel}
+          </div>
+          <div>
+            <p className="font-bold text-sm" style={{ color: 'var(--accent)' }}>
+              Level {sessionLevel}{(session as any).levels?.title ? ` — ${(session as any).levels.title}` : ''} session
+            </p>
+            <p className="text-xs" style={{ color: 'var(--ink-500)' }}>
+              Showing only students who have reached Level {sessionLevel} or above ({enrollments.length} students).
+              Students below this level are not shown.
+            </p>
+          </div>
+        </div>
+      )}
 
       <div className="grid sm:grid-cols-4 gap-4 mb-6">
         <div className="card">

@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/server';
 import { requireRole } from '@/lib/auth';
 import { logAudit } from '@/lib/audit';
 import { PageHeader } from '@/components/ui';
+import InternshipLevelSelect from '@/components/InternshipLevelSelect';
 import { ArrowLeft } from 'lucide-react';
 
 export const dynamic = 'force-dynamic';

@@ -6,9 +6,10 @@ import { requireRole } from '@/lib/auth';
 import { logAudit } from '@/lib/audit';
 import { PageHeader, Pill, EmptyState } from '@/components/ui';
 import { formatDateTime } from '@/lib/utils';
-import { ArrowLeft, RefreshCw, Trash2 } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
 import AttendanceRowActions from '@/components/AttendanceRowActions';
 import BulkMarkAllPresent from '@/components/BulkMarkAllPresent';
+import ResetAttendanceButton from '@/components/ResetAttendanceButton';
 
 export const dynamic = 'force-dynamic';
 
@@ -90,8 +91,7 @@ export default async function AttendanceMarkingPage({
     .from('enrollments')
     .select('student_id, current_level, status, profiles:student_id (full_name, email)')
     .eq('internship_id', session.internship_id)
-    .neq('status', 'filtered')  // never show removed students in attendance
-    .order('profiles(full_name)', { ascending: true });
+    .neq('status', 'filtered'); // never show removed students
 
   if (sessionLevelNumber !== null) {
     enrollmentsQuery = enrollmentsQuery.gte('current_level', sessionLevelNumber);
@@ -102,6 +102,7 @@ export default async function AttendanceMarkingPage({
     admin.from('attendance').select('*').eq('session_id', session.id),
   ]);
 
+  // Sort by name in JS (avoids Supabase joined-column order syntax issues)
   const enrollments = (enrollmentsRes.data ?? []).slice().sort((a: any, b: any) => {
     const an = (a.profiles?.full_name ?? a.profiles?.email ?? '').toLowerCase();
     const bn = (b.profiles?.full_name ?? b.profiles?.email ?? '').toLowerCase();
@@ -196,24 +197,14 @@ export default async function AttendanceMarkingPage({
       <div className="flex items-start gap-3 flex-wrap mb-6">
         <BulkMarkAllPresent sessionId={session.id} studentIds={eligibleStudentIds}/>
 
-        {/* Reset — only show if any attendance exists for this session's eligible students */}
         {counts.present + counts.partial + counts.absent > 0 && (
-          <form action={resetAttendance}>
-            <input type="hidden" name="session_id" value={session.id}/>
-            <input type="hidden" name="return_url" value={`/${basePath}/sessions/${session.id}/attendance`}/>
-            {eligibleStudentIds.map(id => (
-              <input key={id} type="hidden" name="student_id" value={id}/>
-            ))}
-            <button type="submit" className="btn btn-ghost text-sm"
-              style={{ color: 'var(--red-700)', borderColor: 'rgba(239,68,68,.25)' }}
-              onClick={e => {
-                if (!window.confirm(`Clear all ${counts.present + counts.partial + counts.absent} marked records for this session and start fresh?`)) {
-                  e.preventDefault();
-                }
-              }}>
-              <Trash2 size={13}/> Reset attendance
-            </button>
-          </form>
+          <ResetAttendanceButton
+            sessionId={session.id}
+            studentIds={eligibleStudentIds}
+            returnUrl={`/${basePath}/sessions/${session.id}/attendance`}
+            count={counts.present + counts.partial + counts.absent}
+            resetAction={resetAttendance}
+          />
         )}
       </div>
 

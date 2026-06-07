@@ -6,7 +6,7 @@ import { requireRole } from '@/lib/auth';
 import { logAudit } from '@/lib/audit';
 import { PageHeader, Pill, EmptyState } from '@/components/ui';
 import { formatDateTime } from '@/lib/utils';
-import { ArrowLeft, Trash2, FileText, Link as LinkIcon, Pencil, Video, Zap, UserCheck } from 'lucide-react';
+import { ArrowLeft, Trash2, FileText, Link as LinkIcon, Pencil, Video, Zap, UserCheck, Clock } from 'lucide-react';
 import ConfirmDeleteButton from '@/components/ConfirmDeleteButton';
 import LiveCodePanel from './LiveCodePanel';
 
@@ -159,6 +159,11 @@ export default async function SessionDetailPage({
             >
               <UserCheck size={14} /> Attendance
             </Link>
+            {session.session_type === 'recorded' && (
+              <Link href={`/admin/sessions/${session.id}/watchtime`} className="btn btn-secondary">
+                <Clock size={14}/> Watch-time
+              </Link>
+            )}
             <Link href={`/admin/sessions/${session.id}/quiz`} className="btn btn-secondary">
               <Zap size={14} /> Quiz
             </Link>
@@ -336,34 +341,95 @@ export default async function SessionDetailPage({
           <h2 className="font-display text-2xl mb-4">Attendance roster</h2>
           {attendance && attendance.length > 0 ? (
             <div className="card p-0 overflow-hidden table-wrap">
+              <div className="px-5 py-3.5 flex items-center gap-2"
+                style={{ background: 'linear-gradient(135deg,#0a0f1e,#1e1b4b)', borderBottom: '1px solid rgba(255,255,255,.06)' }}>
+                <span style={{ color: '#fbbf24' }}>⏱</span>
+                <p className="font-bold text-sm text-white">Watch-time & attendance</p>
+                <span className="ml-auto text-xs" style={{ color: 'rgba(255,255,255,.35)' }}>
+                  {presentCount} present · {partialCount} partial
+                </span>
+              </div>
               <table className="table">
                 <thead>
                   <tr>
                     <th>Student</th>
                     <th>Status</th>
-                    <th>Marked</th>
+                    <th style={{ minWidth: 160 }}>Watch time</th>
+                    <th style={{ textAlign: 'right' }}>Progress</th>
+                    <th>Last seen</th>
+                    <th>Position</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {attendance.map((a: any) => (
-                    <tr key={a.id}>
-                      <td>
-                        <p className="font-medium">{a.profiles?.full_name ?? '—'}</p>
-                        <p className="text-xs" style={{ color: 'var(--ink-500)' }}>{a.profiles?.email}</p>
-                      </td>
-                      <td>
-                        <Pill tone={a.status === 'present' ? 'green' : a.status === 'partial' ? 'accent' : 'red'}>
-                          {a.status}
-                        </Pill>
-                      </td>
-                      <td className="text-xs">{formatDateTime(a.marked_at)}</td>
-                    </tr>
-                  ))}
+                  {attendance
+                    .slice()
+                    .sort((a: any, b: any) => (b.active_seconds ?? 0) - (a.active_seconds ?? 0))
+                    .map((a: any) => {
+                      const activeSec: number = a.active_seconds ?? 0;
+                      const duration: number  = session.video_duration_sec ?? 0;
+                      const required: number  = Math.floor(duration * 0.8);
+                      const pct = required > 0 ? Math.min(100, Math.round((activeSec / required) * 100)) : 0;
+                      const totalPct = duration > 0 ? Math.min(100, Math.round((activeSec / duration) * 100)) : 0;
+                      const barColor = a.status === 'present' ? '#10b981' : a.status === 'partial' ? '#f59e0b' : '#ef4444';
+                      const lastPos: number = a.last_position ?? 0;
+
+                      function fmtSec(s: number) {
+                        const m = Math.floor(s / 60); const sec = s % 60;
+                        return `${m}:${String(sec).padStart(2,'0')}`;
+                      }
+
+                      return (
+                        <tr key={a.id}>
+                          <td>
+                            <p className="font-medium text-sm">{a.profiles?.full_name ?? '—'}</p>
+                            <p className="text-xs" style={{ color: 'var(--ink-500)' }}>{a.profiles?.email}</p>
+                          </td>
+                          <td>
+                            <Pill tone={a.status === 'present' ? 'green' : a.status === 'partial' ? 'amber' : 'red'}>
+                              {a.status}
+                            </Pill>
+                            {a.marked_manually_by && (
+                              <p className="text-[10px] mt-1" style={{ color: 'var(--ink-400)' }}>manual</p>
+                            )}
+                          </td>
+                          <td>
+                            <div>
+                              <span className="font-mono font-bold text-sm">{fmtSec(activeSec)}</span>
+                              {duration > 0 && (
+                                <span className="text-xs ml-1" style={{ color: 'var(--ink-500)' }}>
+                                  / {fmtSec(required)} req.
+                                </span>
+                              )}
+                            </div>
+                            {duration > 0 && (
+                              <div className="h-1.5 rounded-full overflow-hidden mt-1.5" style={{ width: 120, background: 'var(--ink-100)' }}>
+                                <div className="h-full rounded-full" style={{ width: `${pct}%`, background: barColor }}/>
+                              </div>
+                            )}
+                          </td>
+                          <td style={{ textAlign: 'right' }}>
+                            {duration > 0 ? (
+                              <span className="font-mono font-bold" style={{ color: barColor }}>
+                                {totalPct}%
+                              </span>
+                            ) : (
+                              <span className="font-mono text-sm">{fmtSec(activeSec)}</span>
+                            )}
+                          </td>
+                          <td className="text-xs" style={{ color: 'var(--ink-500)' }}>
+                            {a.last_heartbeat ? formatDateTime(a.last_heartbeat) : '—'}
+                          </td>
+                          <td className="font-mono text-xs">
+                            {lastPos > 0 ? fmtSec(lastPos) : '—'}
+                          </td>
+                        </tr>
+                      );
+                    })}
                 </tbody>
               </table>
             </div>
           ) : (
-            <EmptyState title="No attendance yet" hint="Records appear as students join the session." />
+            <EmptyState title="No watch data yet" hint="Records appear as students start watching the recording." />
           )}
         </div>
       </div>

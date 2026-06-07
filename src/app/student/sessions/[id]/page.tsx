@@ -6,7 +6,7 @@ import { PageHeader, Pill } from '@/components/ui';
 import { formatDateTime } from '@/lib/utils';
 import { ArrowLeft, ExternalLink, FileText, Link as LinkIcon, Video, Zap } from 'lucide-react';
 import LiveAttendance from './LiveAttendance';
-import RecordedAttendance from './RecordedAttendance';
+import VideoPlayer from '@/components/VideoPlayer';
 import SelfLearningAttendance from './SelfLearningAttendance';
 
 export const dynamic = 'force-dynamic';
@@ -148,9 +148,9 @@ export default async function StudentSessionDetailPage({
           />
         )}
         {session.session_type === 'recorded' && (
-          <RecordedAttendance
+          <VideoPlayer
             sessionId={session.id}
-            recordingUrl={session.recording_url}
+            recordingUrl={session.recording_url ?? null}
             videoDurationSec={session.video_duration_sec ?? 0}
             initialActiveSeconds={existingAtt?.active_seconds ?? 0}
             initialStatus={existingAtt?.status ?? null}

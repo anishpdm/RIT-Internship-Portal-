@@ -228,14 +228,29 @@ export default async function SessionDetailPage({
         </div>
 
         {session.recording_url && (
-          <a
-            href={session.recording_url}
-            target="_blank"
-            rel="noreferrer"
-            className="text-sm link block mb-3 break-all"
-          >
-            Current: {session.recording_url}
-          </a>
+          <div className="mb-3">
+            {/* Inline YouTube preview if it's a YouTube link */}
+            {/youtu(be\.com|\.be)/i.test(session.recording_url) && (() => {
+              const m = session.recording_url.match(/[?&]v=([a-zA-Z0-9_-]{11})/) ??
+                        session.recording_url.match(/youtu\.be\/([a-zA-Z0-9_-]{11})/);
+              const ytId = m?.[1];
+              return ytId ? (
+                <div className="rounded-xl overflow-hidden mb-3" style={{ aspectRatio: '16/9', background: '#000' }}>
+                  <iframe
+                    src={`https://www.youtube.com/embed/${ytId}?rel=0&modestbranding=1`}
+                    className="w-full h-full"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                    allowFullScreen
+                    title="Session recording"
+                  />
+                </div>
+              ) : null;
+            })()}
+            <a href={session.recording_url} target="_blank" rel="noreferrer"
+              className="text-sm link block break-all flex items-center gap-1">
+              <span>🔗</span> {session.recording_url}
+            </a>
+          </div>
         )}
 
         <form action={updateRecording} className="flex flex-col sm:flex-row gap-2">

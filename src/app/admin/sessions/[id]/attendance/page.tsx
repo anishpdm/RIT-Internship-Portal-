@@ -17,14 +17,17 @@ export default async function AttendanceMarkingPage({
 }) {
   const me = await requireRole(['admin', 'mentor']);
   const supabase = createClient();
+  const admin = createAdminClient();
 
-  const { data: session } = await supabase
+  // 1. Fetch session — simple columns only, no join (avoids FK ambiguity)
+  const { data: session } = await admin
     .from('sessions')
-    .select('id, title, scheduled_at, duration_minutes, session_type, internship_id, level_id, internships:internship_id (title), levels:level_id (level_number, title)')
+    .select('id, title, scheduled_at, duration_minutes, session_type, internship_id, level_id')
     .eq('id', params.id)
     .single();
   if (!session) notFound();
 
+  // 2. Mentor access check
   if (me.profile.role === 'mentor') {
     const { data: ma } = await supabase
       .from('mentor_assignments').select('id')
@@ -33,20 +36,35 @@ export default async function AttendanceMarkingPage({
   }
 
   const basePath = me.profile.role === 'admin' ? 'admin' : 'mentor';
-  const admin = createAdminClient();
 
-  const sessionLevel = (session as any).levels?.level_number ?? null;
+  // 3. Resolve level number from level_id via a direct query (not a join)
+  let sessionLevelNumber: number | null = null;
+  let sessionLevelTitle: string | null = null;
+  if (session.level_id) {
+    const { data: lv } = await admin
+      .from('levels')
+      .select('level_number, title')
+      .eq('id', session.level_id)
+      .single();
+    sessionLevelNumber = lv?.level_number ?? null;
+    sessionLevelTitle  = lv?.title ?? null;
+  }
 
-  // Fetch enrollments — filtered by level if session is level-gated.
-  // A Level 2 session only shows students who have reached Level 2+ (current_level >= 2).
+  // 4. Fetch internship name separately
+  const { data: internshipData } = await admin
+    .from('internships').select('title').eq('id', session.internship_id).single();
+
+  // 5. Fetch enrollments — filter by level when session is level-gated
+  //    Rule: current_level >= sessionLevelNumber means student has reached that level
   let enrollmentsQuery = admin
     .from('enrollments')
     .select('student_id, current_level, status, profiles:student_id (full_name, email)')
     .eq('internship_id', session.internship_id)
-    .neq('status', 'filtered');
+    .neq('status', 'filtered')  // never show removed students in attendance
+    .order('profiles(full_name)', { ascending: true });
 
-  if (sessionLevel) {
-    enrollmentsQuery = enrollmentsQuery.gte('current_level', sessionLevel);
+  if (sessionLevelNumber !== null) {
+    enrollmentsQuery = enrollmentsQuery.gte('current_level', sessionLevelNumber);
   }
 
   const [enrollmentsRes, attendanceRes] = await Promise.all([
@@ -54,40 +72,28 @@ export default async function AttendanceMarkingPage({
     admin.from('attendance').select('*').eq('session_id', session.id),
   ]);
 
-  const enrollments = (enrollmentsRes.data ?? [])
-    .slice()
-    .sort((a: any, b: any) => {
-      const an = (a.profiles?.full_name ?? a.profiles?.email ?? '').toLowerCase();
-      const bn = (b.profiles?.full_name ?? b.profiles?.email ?? '').toLowerCase();
-      return an.localeCompare(bn);
-    });
+  const enrollments = (enrollmentsRes.data ?? []).slice().sort((a: any, b: any) => {
+    const an = (a.profiles?.full_name ?? a.profiles?.email ?? '').toLowerCase();
+    const bn = (b.profiles?.full_name ?? b.profiles?.email ?? '').toLowerCase();
+    return an.localeCompare(bn);
+  });
+
   const attendance = attendanceRes.data ?? [];
 
-  // Fetch marker profiles in a separate query — no FK auto-join needed
-  const markerIds = Array.from(
-    new Set(
-      attendance
-        .map((a: any) => a.marked_manually_by)
-        .filter((id: string | null | undefined): id is string => !!id),
-    ),
-  );
-  const markerProfiles = new Map<
-    string,
-    { full_name: string | null; email: string | null }
-  >();
-  if (markerIds.length > 0) {
-    const { data: profiles } = await admin
-      .from('profiles')
-      .select('id, full_name, email')
-      .in('id', markerIds);
-    for (const p of profiles ?? []) {
-      markerProfiles.set(p.id, { full_name: p.full_name, email: p.email });
-    }
+  // 6. Marker names
+  const markerIds = Array.from(new Set(
+    attendance.map((a: any) => a.marked_manually_by).filter(Boolean)
+  ));
+  const markerProfiles = new Map<string, { full_name: string | null; email: string | null }>();
+  if (markerIds.length) {
+    const { data: profiles } = await admin.from('profiles').select('id, full_name, email').in('id', markerIds);
+    for (const p of profiles ?? []) markerProfiles.set(p.id, p);
   }
 
   const attMap = new Map<string, any>();
   for (const a of attendance) attMap.set((a as any).student_id, a);
 
+  // 7. Counts — only for the filtered student list
   const counts = { present: 0, partial: 0, absent: 0, notMarked: 0 };
   for (const e of enrollments) {
     const a = attMap.get((e as any).student_id);
@@ -98,12 +104,15 @@ export default async function AttendanceMarkingPage({
     else counts.notMarked++;
   }
 
+  // 8. Student IDs for bulk-mark (only the filtered set)
+  const eligibleStudentIds = enrollments.map((e: any) => e.student_id);
+
   return (
     <>
       <PageHeader
-        eyebrow={`Attendance · ${(session as any).internships?.title ?? ''}`}
+        eyebrow={`Attendance · ${internshipData?.title ?? ''}`}
         title={session.title}
-        subtitle={`${formatDateTime(session.scheduled_at)} · ${session.duration_minutes}m · manual marking`}
+        subtitle={`${formatDateTime(session.scheduled_at)} · ${session.duration_minutes}m`}
         actions={
           <Link href={`/${basePath}/sessions/${session.id}`} className="btn btn-ghost">
             <ArrowLeft size={16}/> Back to session
@@ -112,56 +121,59 @@ export default async function AttendanceMarkingPage({
       />
 
       {/* Level filter notice */}
-      {sessionLevel && (
+      {sessionLevelNumber !== null ? (
         <div className="rounded-xl px-4 py-3 mb-5 flex items-center gap-3"
           style={{ background: 'linear-gradient(135deg,rgba(99,102,241,.1),rgba(99,102,241,.04))', border: '1.5px solid rgba(99,102,241,.25)' }}>
           <div className="w-9 h-9 rounded-xl flex items-center justify-center font-bold text-white text-sm shrink-0"
             style={{ background: 'linear-gradient(135deg,var(--accent),#818cf8)' }}>
-            {sessionLevel}
+            {sessionLevelNumber}
           </div>
           <div>
             <p className="font-bold text-sm" style={{ color: 'var(--accent)' }}>
-              Level {sessionLevel}{(session as any).levels?.title ? ` — ${(session as any).levels.title}` : ''} session
+              Level {sessionLevelNumber}{sessionLevelTitle ? ` — ${sessionLevelTitle}` : ''} session
             </p>
             <p className="text-xs" style={{ color: 'var(--ink-500)' }}>
-              Showing only students who have reached Level {sessionLevel} or above ({enrollments.length} students).
-              Students below this level are not shown.
+              Only students at Level {sessionLevelNumber}+ are shown ({enrollments.length} students).
+              Students who haven&apos;t reached this level are excluded.
             </p>
           </div>
         </div>
+      ) : (
+        <div className="rounded-xl px-4 py-2.5 mb-5 flex items-center gap-2"
+          style={{ background: 'var(--ink-50)', border: '1px solid var(--ink-200)' }}>
+          <span className="text-xs" style={{ color: 'var(--ink-500)' }}>
+            Global session — all {enrollments.length} active students shown
+          </span>
+        </div>
       )}
 
+      {/* Stats */}
       <div className="grid sm:grid-cols-4 gap-4 mb-6">
-        <div className="card">
-          <p className="eyebrow">Present</p>
-          <p className="stat-num" style={{ color: 'var(--green-700)' }}>
-            {counts.present}
-          </p>
-        </div>
-        <div className="card">
-          <p className="eyebrow">Partial</p>
-          <p className="stat-num" style={{ color: '#eab308' }}>
-            {counts.partial}
-          </p>
-        </div>
-        <div className="card">
-          <p className="eyebrow">Absent</p>
-          <p className="stat-num" style={{ color: 'var(--red-500)' }}>
-            {counts.absent}
-          </p>
-        </div>
-        <div className="card">
-          <p className="eyebrow">Not marked</p>
-          <p className="stat-num" style={{ color: 'var(--ink-500)' }}>
-            {counts.notMarked}
-          </p>
-        </div>
+        {[
+          { label: 'Present',    count: counts.present,   color: 'var(--green-700)' },
+          { label: 'Partial',    count: counts.partial,   color: '#eab308' },
+          { label: 'Absent',     count: counts.absent,    color: 'var(--red-500)' },
+          { label: 'Not marked', count: counts.notMarked, color: 'var(--ink-500)' },
+        ].map(s => (
+          <div key={s.label} className="card">
+            <p className="eyebrow">{s.label}</p>
+            <p className="stat-num" style={{ color: s.color }}>{s.count}</p>
+          </div>
+        ))}
       </div>
 
-      <BulkMarkAllPresent sessionId={session.id} />
+      {/* Bulk mark — passes only eligible student IDs */}
+      <BulkMarkAllPresent sessionId={session.id} studentIds={eligibleStudentIds}/>
 
       {enrollments.length === 0 ? (
-        <EmptyState title="No students enrolled in this internship" />
+        <EmptyState
+          title={sessionLevelNumber !== null
+            ? `No students have reached Level ${sessionLevelNumber} yet`
+            : 'No students enrolled in this internship'}
+          hint={sessionLevelNumber !== null
+            ? 'Promote students to this level from the Levels page before marking attendance.'
+            : 'Enrol students from the internship page.'}
+        />
       ) : (
         <div className="card p-0 overflow-hidden table-wrap">
           <table className="table">
@@ -176,11 +188,10 @@ export default async function AttendanceMarkingPage({
             <tbody>
               {enrollments.map((e: any) => {
                 const studentId = e.student_id;
-                const a = attMap.get(studentId);
-                const status = a?.status ?? null;
-                const markerId: string | null = a?.marked_manually_by ?? null;
-                const marker = markerId ? markerProfiles.get(markerId) : null;
-                const name = e.profiles?.full_name ?? e.profiles?.email ?? '—';
+                const a         = attMap.get(studentId);
+                const status    = a?.status ?? null;
+                const marker    = a?.marked_manually_by ? markerProfiles.get(a.marked_manually_by) : null;
+                const name      = e.profiles?.full_name ?? e.profiles?.email ?? '—';
 
                 return (
                   <tr key={studentId}>
@@ -193,56 +204,21 @@ export default async function AttendanceMarkingPage({
                     <td>
                       {status === 'present' && <Pill tone="green">Present</Pill>}
                       {status === 'partial' && <Pill tone="amber">Partial</Pill>}
-                      {status === 'absent' && <Pill tone="red">Absent</Pill>}
-                      {!status && (
-                        <span
-                          className="text-xs"
-                          style={{ color: 'var(--ink-500)' }}
-                        >
-                          Not marked
-                        </span>
-                      )}
+                      {status === 'absent'  && <Pill tone="red">Absent</Pill>}
+                      {!status && <span className="text-xs" style={{ color: 'var(--ink-500)' }}>Not marked</span>}
                     </td>
                     <td className="text-xs" style={{ color: 'var(--ink-500)' }}>
-                      {!a ? (
-                        '—'
-                      ) : marker ? (
-                        <>
-                          Manually by{' '}
-                          <strong style={{ color: 'var(--ink-700)' }}>
-                            {marker.full_name ?? marker.email ?? 'staff'}
-                          </strong>
-                          {a.marked_manually_at && (
-                            <>
-                              <br />
-                              {formatDateTime(a.marked_manually_at)}
-                            </>
-                          )}
-                        </>
-                      ) : a.code_entered_at ? (
-                        <>
-                          Self via code
-                          <br />
-                          {formatDateTime(a.code_entered_at)}
-                        </>
-                      ) : a.joined_at ? (
-                        <>
-                          Self
-                          <br />
-                          {formatDateTime(a.joined_at)}
-                        </>
-                      ) : status ? (
-                        <em>Set manually (no history)</em>
-                      ) : (
-                        '—'
-                      )}
+                      {!a ? '—'
+                        : marker ? (
+                          <>Manually by <strong style={{ color: 'var(--ink-700)' }}>{marker.full_name ?? marker.email}</strong>
+                            {a.marked_manually_at && <><br/>{formatDateTime(a.marked_manually_at)}</>}
+                          </>
+                        ) : a.code_entered_at ? <>Self via code<br/>{formatDateTime(a.code_entered_at)}</>
+                        : a.joined_at ? <>Self<br/>{formatDateTime(a.joined_at)}</>
+                        : status ? <em>Set manually</em> : '—'}
                     </td>
                     <td>
-                      <AttendanceRowActions
-                        sessionId={session.id}
-                        studentId={studentId}
-                        currentStatus={status}
-                      />
+                      <AttendanceRowActions sessionId={session.id} studentId={studentId} currentStatus={status}/>
                     </td>
                   </tr>
                 );

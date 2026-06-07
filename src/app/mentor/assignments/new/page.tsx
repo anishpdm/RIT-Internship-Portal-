@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/server';
 import { requireRole } from '@/lib/auth';
 import { logAudit } from '@/lib/audit';
 import { PageHeader } from '@/components/ui';
+import AssignmentInternshipSelect from '@/components/AssignmentInternshipSelect';
 import { ArrowLeft } from 'lucide-react';
 
 export const dynamic = 'force-dynamic';
@@ -99,9 +100,22 @@ export default async function MentorNewAssignmentPage() {
 
   const { data: internships } = await internshipsQuery;
   const internshipIds = internships?.map((i: any) => i.id) ?? [];
-  const { data: levels } = internshipIds.length
-    ? await supabase.from('levels').select('id, internship_id, level_number, title').in('internship_id', internshipIds).order('level_number')
-    : { data: [] };
+
+  const [{ data: levels }, { data: allSessions }] = internshipIds.length ? await Promise.all([
+    supabase.from('levels').select('id, internship_id, level_number, title').in('internship_id', internshipIds).order('level_number'),
+    supabase.from('sessions').select('id, internship_id, title, level_id, scheduled_at, session_type').in('internship_id', internshipIds).order('scheduled_at', { ascending: false }),
+  ]) : [{ data: [] }, { data: [] }];
+
+  const levelsByInternship: Record<string, any[]> = {};
+  for (const l of levels ?? []) {
+    if (!levelsByInternship[l.internship_id]) levelsByInternship[l.internship_id] = [];
+    levelsByInternship[l.internship_id].push(l);
+  }
+  const sessionsByInternship: Record<string, any[]> = {};
+  for (const s of allSessions ?? []) {
+    if (!sessionsByInternship[s.internship_id]) sessionsByInternship[s.internship_id] = [];
+    sessionsByInternship[s.internship_id].push(s);
+  }
 
   return (
     <>
@@ -113,22 +127,11 @@ export default async function MentorNewAssignmentPage() {
       />
 
       <form action={createAssignment} className="card max-w-3xl space-y-5">
-        <div className="grid sm:grid-cols-2 gap-4">
-          <div>
-            <label className="field-label">Internship</label>
-            <select name="internship_id" className="field" required>
-              <option value="">— Choose —</option>
-              {internships?.map((i: any) => <option key={i.id} value={i.id}>{i.title}</option>)}
-            </select>
-          </div>
-          <div>
-            <label className="field-label">Level (optional)</label>
-            <select name="level_id" className="field">
-              <option value="">— Any —</option>
-              {levels?.map((l: any) => <option key={l.id} value={l.id}>L{l.level_number} · {l.title}</option>)}
-            </select>
-          </div>
-        </div>
+        <AssignmentInternshipSelect
+          internships={internships ?? []}
+          levelsByInternship={levelsByInternship}
+          sessionsByInternship={sessionsByInternship}
+        />
 
         <div>
           <label className="field-label">Title</label>

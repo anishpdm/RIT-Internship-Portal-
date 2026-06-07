@@ -4,7 +4,13 @@ import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { UserCheck, Loader2, AlertCircle, CheckCircle2 } from 'lucide-react';
 
-export default function BulkMarkAllPresent({ sessionId }: { sessionId: string }) {
+export default function BulkMarkAllPresent({
+  sessionId,
+  studentIds,
+}: {
+  sessionId: string;
+  studentIds: string[];   // only the level-filtered students
+}) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [confirming, setConfirming] = useState(false);
@@ -18,7 +24,7 @@ export default function BulkMarkAllPresent({ sessionId }: { sessionId: string })
       const res = await fetch('/api/attendance/manual-mark-all', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ session_id: sessionId }),
+        body: JSON.stringify({ session_id: sessionId, student_ids: studentIds }),
       });
       const data = await res.json();
       if (!res.ok) {

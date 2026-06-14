@@ -105,6 +105,31 @@ export default async function StudentQuizzesPage() {
     else available.push(item);
   }
 
+  // Sort available quizzes: open-now first (by closing soonest), then no-window quizzes
+  available.sort((a, b) => {
+    // Open quizzes with an end date come first, ordered by soonest close
+    const aHasEnd = a.windowState === 'open' && a.ends_at;
+    const bHasEnd = b.windowState === 'open' && b.ends_at;
+    if (aHasEnd && bHasEnd) {
+      return new Date(a.ends_at).getTime() - new Date(b.ends_at).getTime();
+    }
+    if (aHasEnd) return -1;  // a closes soon → first
+    if (bHasEnd) return 1;
+    // Neither has a close date — keep open ones above, then by start date
+    if (a.windowState === 'open' && b.windowState !== 'open') return -1;
+    if (b.windowState === 'open' && a.windowState !== 'open') return 1;
+    const aStart = a.starts_at ? new Date(a.starts_at).getTime() : 0;
+    const bStart = b.starts_at ? new Date(b.starts_at).getTime() : 0;
+    return bStart - aStart;
+  });
+
+  // Upcoming sorted by soonest opening first
+  upcoming.sort((a, b) => {
+    const aStart = a.starts_at ? new Date(a.starts_at).getTime() : Infinity;
+    const bStart = b.starts_at ? new Date(b.starts_at).getTime() : Infinity;
+    return aStart - bStart;
+  });
+
   function QuizCard({ q, kind }: { q: any; kind: 'available' | 'upcoming' | 'completed' }) {
     const pct = q.total > 0 ? Math.round((q.prog.correct / q.total) * 100) : 0;
     const answeredPct = q.total > 0 ? Math.round((q.prog.answered / q.total) * 100) : 0;
@@ -138,9 +163,29 @@ export default async function StudentQuizzesPage() {
 
             <div className="flex items-center gap-2 mt-2 flex-wrap">
               <span className="pill" style={{ fontSize: '.62rem' }}>{q.total} questions</span>
-              {kind === 'available' && q.windowState === 'open' && (
-                <span className="pill pill-accent" style={{ fontSize: '.62rem' }}>● Open now</span>
-              )}
+              {kind === 'available' && q.windowState === 'open' && (() => {
+                if (!q.ends_at) {
+                  return <span className="pill pill-accent" style={{ fontSize: '.62rem' }}>● Open now</span>;
+                }
+                const msLeft = new Date(q.ends_at).getTime() - Date.now();
+                const hoursLeft = msLeft / 3600000;
+                const closingSoon = hoursLeft < 24;
+                const label = hoursLeft < 1
+                  ? `Closes in ${Math.max(1, Math.round(msLeft / 60000))} min`
+                  : hoursLeft < 24
+                    ? `Closes in ${Math.round(hoursLeft)}h`
+                    : `Closes ${fmt(q.ends_at)}`;
+                return (
+                  <span className="pill" style={{
+                    fontSize: '.62rem',
+                    background: closingSoon ? 'rgba(239,68,68,.12)' : 'var(--accent-soft)',
+                    color: closingSoon ? 'var(--red-700)' : 'var(--accent)',
+                    border: `1px solid ${closingSoon ? 'rgba(239,68,68,.25)' : 'rgba(99,102,241,.2)'}`,
+                  }}>
+                    {closingSoon ? '🔴' : '●'} {label}
+                  </span>
+                );
+              })()}
               {kind === 'upcoming' && q.starts_at && (
                 <span className="pill" style={{ fontSize: '.62rem' }}>Opens {fmt(q.starts_at)}</span>
               )}

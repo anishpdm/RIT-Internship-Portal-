@@ -11,7 +11,7 @@ import {
   ClipboardCheck, ScrollText, BookOpen, LogOut,
   FileCheck, FileText, ShieldCheck, Trophy,
   Settings, Menu, X, ChevronLeft, ChevronRight,
-  Search, type LucideIcon,
+  Search, HelpCircle, type LucideIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -42,8 +42,9 @@ const NAV: Record<UserRole, NavItem[]> = {
   student: [
     { href: '/student',             label: 'Overview',    icon: LayoutDashboard },
     { href: '/student/sessions',    label: 'Sessions',    icon: Calendar },
+    { href: '/student/quizzes',     label: 'Quizzes',     icon: HelpCircle },
     { href: '/student/assignments', label: 'Assignments', icon: BookOpen },
-    { href: '/student/library',     label: 'Library',     icon: FileText },
+    { href: '/student/library',     label: 'Recordings',  icon: FileText },
     { href: '/student/leaderboard', label: 'Leaderboard', icon: Trophy },
     { href: '/student/profile',     label: 'Account',     icon: Settings },
   ],

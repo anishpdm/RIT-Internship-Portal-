@@ -182,37 +182,53 @@ export default function InternshipLeaderboard({
       </div>
 
       {/* ── Level tabs ── */}
-      <div className="flex flex-wrap gap-2 mb-5">
-        <button
-          onClick={() => setSelectedLevel(null)}
-          className="pill transition-all"
-          style={!selectedLevel ? { background: 'var(--accent)', color: 'white', border: 'none' } : {}}
-        >
-          🏆 Overall
-        </button>
-        {levels.map(l => {
-          const myLS = myLevels.find(ml => ml.level_number === l.level_number);
-          const reached = myLS?.reached ?? false;
-          const active = selectedLevel === l.level_number;
-          return (
-            <button
-              key={l.level_number}
-              onClick={() => setSelectedLevel(l.level_number)}
-              className="pill transition-all flex items-center gap-1"
-              style={active
-                ? { background: 'linear-gradient(135deg,var(--accent),#818cf8)', color: 'white', border: 'none' }
-                : { opacity: reached ? 1 : 0.5 }}
-              title={reached ? `View Level ${l.level_number} leaderboard` : 'Not yet reached'}
-            >
-              {reached ? '📊' : '🔒'} L{l.level_number}{l.title ? ` · ${l.title}` : ''}
-              {myLS && reached && (
-                <span className="text-[10px] opacity-70 ml-0.5">
-                  {myLS.level_score.toFixed(0)}%
-                </span>
-              )}
-            </button>
-          );
-        })}
+      <div className="rounded-2xl p-3 mb-5" style={{ background: 'var(--ink-50)', border: '1px solid var(--ink-200)' }}>
+        <p className="text-xs font-semibold mb-2 px-1" style={{ color: 'var(--ink-500)' }}>
+          View leaderboard by:
+        </p>
+        <div className="flex flex-wrap gap-2">
+          <button
+            onClick={() => setSelectedLevel(null)}
+            className="transition-all rounded-xl px-3.5 py-2 text-sm font-semibold flex items-center gap-1.5"
+            style={!selectedLevel
+              ? { background: 'linear-gradient(135deg,var(--accent),#818cf8)', color: 'white', boxShadow: '0 4px 12px rgba(99,102,241,.3)' }
+              : { background: 'white', color: 'var(--ink-600)', border: '1.5px solid var(--ink-200)' }}
+          >
+            🏆 Overall
+          </button>
+          {levels.map(l => {
+            const myLS = myLevels.find(ml => ml.level_number === l.level_number);
+            const reached = myLS?.reached ?? false;
+            const active = selectedLevel === l.level_number;
+            const isMyCurrent = l.level_number === myCurrentLevel;
+            return (
+              <button
+                key={l.level_number}
+                onClick={() => reached && setSelectedLevel(l.level_number)}
+                disabled={!reached}
+                className="transition-all rounded-xl px-3.5 py-2 text-sm font-semibold flex items-center gap-1.5"
+                style={active
+                  ? { background: 'linear-gradient(135deg,var(--accent),#818cf8)', color: 'white', boxShadow: '0 4px 12px rgba(99,102,241,.3)' }
+                  : reached
+                    ? { background: 'white', color: 'var(--ink-700)', border: `1.5px solid ${isMyCurrent ? 'var(--accent)' : 'var(--ink-200)'}`, cursor: 'pointer' }
+                    : { background: 'var(--ink-100)', color: 'var(--ink-400)', border: '1.5px solid var(--ink-200)', cursor: 'not-allowed' }}
+                title={reached ? `View Level ${l.level_number} leaderboard` : 'You haven\'t reached this level yet'}
+              >
+                {reached ? '📊' : '🔒'} Level {l.level_number}
+                {isMyCurrent && !active && (
+                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full"
+                    style={{ background: 'var(--accent)', color: 'white' }}>NOW</span>
+                )}
+                {myLS && reached && (
+                  <span className="text-xs font-mono px-1.5 py-0.5 rounded-md"
+                    style={{ background: active ? 'rgba(255,255,255,.2)' : 'var(--accent-soft)', color: active ? 'white' : 'var(--accent)' }}>
+                    {myLS.level_score.toFixed(0)}%
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       {/* Level context banner */}

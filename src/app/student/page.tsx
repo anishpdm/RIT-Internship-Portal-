@@ -3,7 +3,7 @@ import { createClient } from '@/lib/supabase/server';
 import { requireRole } from '@/lib/auth';
 import { Stat, Pill } from '@/components/ui';
 import { formatDateTime, relativeTime } from '@/lib/utils';
-import { BookOpen, Calendar, Trophy, ArrowRight, Star } from 'lucide-react';
+import { BookOpen, Calendar, Trophy, ArrowRight, Star, HelpCircle, PlayCircle } from 'lucide-react';
 import { getAccessibleLevelIds, levelOrFilter } from '@/lib/level-access';
 
 export const dynamic = 'force-dynamic';
@@ -77,8 +77,8 @@ export default async function StudentHomePage() {
               {enrollments?.length ?? 0} internship{enrollments?.length !== 1 ? 's' : ''} · {pending.length} pending tasks
             </p>
             <div className="flex gap-3 mt-5 flex-wrap">
-              <Link href="/student/assignments" className="btn btn-primary" style={{ fontSize: '.8rem' }}>
-                My Assignments
+              <Link href="/student/quizzes" className="btn btn-primary" style={{ fontSize: '.8rem' }}>
+                Take a Quiz
               </Link>
               <Link href="/student/leaderboard" className="btn" style={{ fontSize: '.8rem', background: 'rgba(255,255,255,.1)', color: 'white', borderColor: 'rgba(255,255,255,.15)' }}>
                 <Trophy size={14}/> Leaderboard
@@ -99,6 +99,30 @@ export default async function StudentHomePage() {
             <p className="text-xs mt-2 font-medium" style={{ color: 'rgba(255,255,255,.4)' }}>Overall performance</p>
           </div>
         </div>
+      </div>
+
+      {/* ── Quick access ── */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-8">
+        {[
+          { href: '/student/sessions',    label: 'Sessions',    sub: 'Live & recorded', icon: Calendar,   color: '#6366f1' },
+          { href: '/student/quizzes',     label: 'Quizzes',     sub: 'Test yourself',   icon: HelpCircle, color: '#f59e0b' },
+          { href: '/student/assignments', label: 'Assignments', sub: `${pending.length} pending`, icon: BookOpen, color: '#10b981' },
+          { href: '/student/library',     label: 'Recordings',  sub: 'Watch anytime',   icon: PlayCircle, color: '#06b6d4' },
+        ].map(item => {
+          const Icon = item.icon;
+          return (
+            <Link key={item.href} href={item.href}
+              className="card transition-all hover:scale-[1.03]"
+              style={{ textDecoration: 'none', borderTop: `3px solid ${item.color}` }}>
+              <div className="w-11 h-11 rounded-2xl flex items-center justify-center mb-3"
+                style={{ background: `${item.color}18` }}>
+                <Icon size={20} style={{ color: item.color }}/>
+              </div>
+              <p className="font-display font-bold text-sm">{item.label}</p>
+              <p className="text-xs mt-0.5" style={{ color: 'var(--ink-500)' }}>{item.sub}</p>
+            </Link>
+          );
+        })}
       </div>
 
       {/* ── Stats ── */}

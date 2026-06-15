@@ -30,19 +30,33 @@ export default async function StudentQuizzesPage() {
 
   const accessibleLevelIds = access?.levelIds ?? [];
 
+  // Build level_id → level_number map + student's current level per internship
+  const { data: allLevels } = await supabase
+    .from('levels')
+    .select('id, level_number, internship_id')
+    .in('internship_id', internshipIds);
+  const levelInfo = new Map<string, { level_number: number; internship_id: string }>(
+    (allLevels ?? []).map((l: any) => [l.id, { level_number: l.level_number, internship_id: l.internship_id }]),
+  );
+  const currentLevelByInternship = new Map<string, number>(
+    (access?.enrollments ?? []).map((e: any) => [e.internship_id, e.current_level]),
+  );
+
   // Get all sessions in enrolled internships.
-  // NOTE: filter hidden in JS, not via .eq('is_hidden', false), because
-  // older rows may have is_hidden = NULL which .eq() would wrongly exclude.
   const { data: allSessions } = await supabase
     .from('sessions')
     .select('id, title, level_id, is_hidden, internship_id, internships:internship_id (title)')
     .in('internship_id', internshipIds);
 
-  // Filter to sessions the student can access: not hidden (NULL = visible) + level reached
-  const visibleSessions = (allSessions ?? []).filter((s: any) =>
-    s.is_hidden !== true &&                              // NULL or false → visible
-    (!s.level_id || accessibleLevelIds.includes(s.level_id))
-  );
+  // Filter to sessions the student can access: not hidden + level reached (by NUMBER)
+  const visibleSessions = (allSessions ?? []).filter((s: any) => {
+    if (s.is_hidden === true) return false;
+    if (!s.level_id) return true;
+    const info = levelInfo.get(s.level_id);
+    if (!info) return true; // orphaned/legacy level tag → show
+    const myLevel = currentLevelByInternship.get(s.internship_id) ?? 1;
+    return info.level_number <= myLevel;
+  });
   const sessionIds = visibleSessions.map((s: any) => s.id);
   const sessionMap = new Map(visibleSessions.map((s: any) => [s.id, s]));
 

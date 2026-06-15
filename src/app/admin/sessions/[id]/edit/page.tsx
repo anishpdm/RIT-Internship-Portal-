@@ -27,6 +27,7 @@ async function updateSession(formData: FormData) {
   const min_dwell_minutes = parseInt(String(formData.get('min_dwell_minutes') ?? '30'), 10);
   const status = String(formData.get('status') ?? 'scheduled');
   const required = formData.get('required_for_progression') === 'on';
+  const level_id_raw = String(formData.get('level_id') ?? '');
 
   if (!id || !title) redirect(`/admin/sessions/${id}/edit?error=missing`);
 
@@ -61,6 +62,7 @@ async function updateSession(formData: FormData) {
       min_dwell_minutes: min_dwell_minutes || null,
       status,
       required_for_progression: required,
+      level_id: level_id_raw || null,
     })
     .eq('id', id);
 
@@ -132,6 +134,13 @@ export default async function EditSessionPage({
 
   if (!session) notFound();
 
+  // Fetch levels for this session's internship so admin can re-tag
+  const { data: levels } = await supabase
+    .from('levels')
+    .select('id, level_number, title')
+    .eq('internship_id', session.internship_id)
+    .order('level_number');
+
   return (
     <>
       <PageHeader
@@ -169,14 +178,30 @@ export default async function EditSessionPage({
           </div>
         </div>
 
-        <div>
-          <label className="field-label">Status</label>
-          <select name="status" className="field" defaultValue={session.status}>
-            <option value="scheduled">scheduled</option>
-            <option value="live">live</option>
-            <option value="ended">ended</option>
-            <option value="cancelled">cancelled</option>
-          </select>
+        <div className="grid sm:grid-cols-2 gap-4">
+          <div>
+            <label className="field-label">Status</label>
+            <select name="status" className="field" defaultValue={session.status}>
+              <option value="scheduled">scheduled</option>
+              <option value="live">live</option>
+              <option value="ended">ended</option>
+              <option value="cancelled">cancelled</option>
+            </select>
+          </div>
+          <div>
+            <label className="field-label">Level</label>
+            <select name="level_id" className="field" defaultValue={session.level_id ?? ''}>
+              <option value="">— All students (no level) —</option>
+              {(levels ?? []).map((l: any) => (
+                <option key={l.id} value={l.id}>
+                  Level {l.level_number}{l.title ? ` — ${l.title}` : ''}
+                </option>
+              ))}
+            </select>
+            <p className="text-xs mt-1" style={{ color: 'var(--ink-500)' }}>
+              Only students who reached this level will see this session
+            </p>
+          </div>
         </div>
 
         {session.session_type === 'live' && (

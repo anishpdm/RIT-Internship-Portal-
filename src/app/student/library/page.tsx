@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server';
 import { requireRole } from '@/lib/auth';
 import { PageHeader, Pill, EmptyState } from '@/components/ui';
 import { formatDate, formatDateTime } from '@/lib/utils';
+import { getAccessibleLevelIds } from '@/lib/level-access';
 import {
   Video,
   FileText,
@@ -51,15 +52,22 @@ export default async function StudentLibraryPage({
   let items: LibraryItem[] = [];
 
   if (internshipIds.length) {
+    const access = await getAccessibleLevelIds(me.userId);
+    const accessibleLevelIds = access?.levelIds ?? [];
+
     // All sessions in enrolled internships
-    const { data: sessions } = await supabase
+    const { data: sessionsRaw } = await supabase
       .from('sessions')
       .select(
-        'id, title, session_type, scheduled_at, recording_url, internship_id, internships:internship_id (title)',
+        'id, title, session_type, scheduled_at, recording_url, level_id, is_hidden, internship_id, internships:internship_id (title)',
       )
       .in('internship_id', internshipIds)
-      .or('is_hidden.is.null,is_hidden.eq.false')
       .order('scheduled_at', { ascending: false });
+
+    // Filter: not hidden + level reached
+    const sessions = (sessionsRaw ?? []).filter((s: any) =>
+      s.is_hidden !== true && (!s.level_id || accessibleLevelIds.includes(s.level_id))
+    );
 
     // All materials linked to those sessions
     const sessionIds = (sessions ?? []).map((s: any) => s.id);

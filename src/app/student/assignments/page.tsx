@@ -17,14 +17,17 @@ export default async function StudentAssignmentsPage() {
 
   let assignments: any[] = [];
   if (internshipIds.length && access) {
+    const accessibleLevelIds = access.levelIds ?? [];
     const { data } = await supabase
       .from('assignments')
-      .select('id, title, kind, max_score, due_at, level_id, internships:internship_id (title)')
+      .select('id, title, kind, max_score, due_at, level_id, is_hidden, internships:internship_id (title)')
       .in('internship_id', internshipIds)
-      .or('is_hidden.is.null,is_hidden.eq.false')
-      .or(levelOrFilter(access.levelIds))
       .order('due_at', { ascending: false, nullsFirst: false });
-    assignments = data ?? [];
+
+    assignments = (data ?? []).filter((a: any) =>
+      a.is_hidden !== true &&
+      (!a.level_id || accessibleLevelIds.includes(a.level_id))
+    );
   }
 
   // Parallel: submissions + feedback

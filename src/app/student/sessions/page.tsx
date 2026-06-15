@@ -19,14 +19,20 @@ export default async function StudentSessionsPage() {
 
   let sessions: any[] = [];
   if (internshipIds.length && access) {
+    const accessibleLevelIds = access.levelIds ?? [];
     const { data } = await supabase
       .from('sessions')
-      .select('id, title, session_type, status, scheduled_at, duration_minutes, level_id, internships:internship_id (title)')
+      .select('id, title, session_type, status, scheduled_at, duration_minutes, level_id, is_hidden, internships:internship_id (title)')
       .in('internship_id', internshipIds)
-      .or('is_hidden.is.null,is_hidden.eq.false')
-      .or(levelOrFilter(access.levelIds))
       .order('scheduled_at', { ascending: false });
-    sessions = data ?? [];
+
+    // Filter in JS — more reliable than chaining two .or() filters:
+    //  • not hidden (NULL or false both count as visible)
+    //  • no level tag (global) OR level the student has reached
+    sessions = (data ?? []).filter((s: any) =>
+      s.is_hidden !== true &&
+      (!s.level_id || accessibleLevelIds.includes(s.level_id))
+    );
   }
 
   const { data: myAttendance } = await supabase

@@ -22,30 +22,34 @@ export default async function StudentHomePage() {
   const enrollments = enrollmentsRes.data;
   const internshipIds = enrollments?.map((e: any) => e.internship_id) ?? [];
 
+  const accessibleLevelIds = access?.levelIds ?? [];
+
   let upcoming: any[] = [];
   if (internshipIds.length && access) {
     const { data } = await supabase
-      .from('sessions').select('id,title,session_type,scheduled_at,status,meeting_url,internships:internship_id(title)')
+      .from('sessions').select('id,title,session_type,scheduled_at,status,meeting_url,level_id,is_hidden,internships:internship_id(title)')
       .in('internship_id', internshipIds)
-      .or('is_hidden.is.null,is_hidden.eq.false')
-      .or(levelOrFilter(access.levelIds))
       .gte('scheduled_at', new Date().toISOString())
-      .order('scheduled_at', { ascending: true }).limit(5);
-    upcoming = data ?? [];
+      .order('scheduled_at', { ascending: true });
+    upcoming = (data ?? []).filter((s: any) =>
+      s.is_hidden !== true && (!s.level_id || accessibleLevelIds.includes(s.level_id))
+    ).slice(0, 5);
   }
 
   let pending: any[] = [];
   if (internshipIds.length && access) {
     const { data: allA } = await supabase
-      .from('assignments').select('id,title,kind,due_at,max_score,internships:internship_id(title)')
+      .from('assignments').select('id,title,kind,due_at,max_score,level_id,is_hidden,internships:internship_id(title)')
       .in('internship_id', internshipIds)
-      .or('is_hidden.is.null,is_hidden.eq.false')
-      .or(levelOrFilter(access.levelIds))
       .order('due_at', { ascending: true, nullsFirst: false });
     const { data: mySubs } = await supabase
       .from('submissions').select('assignment_id').eq('student_id', me.userId);
     const submittedIds = new Set((mySubs ?? []).map((s: any) => s.assignment_id));
-    pending = (allA ?? []).filter((a: any) => !submittedIds.has(a.id)).slice(0, 5);
+    pending = (allA ?? []).filter((a: any) =>
+      a.is_hidden !== true &&
+      (!a.level_id || accessibleLevelIds.includes(a.level_id)) &&
+      !submittedIds.has(a.id)
+    ).slice(0, 5);
   }
 
   const avgScore = enrollments?.length

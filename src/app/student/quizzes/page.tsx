@@ -28,19 +28,20 @@ export default async function StudentQuizzesPage() {
     );
   }
 
-  // Get all sessions in enrolled internships — respect level + hidden
   const accessibleLevelIds = access?.levelIds ?? [];
-  let sessionsQuery = supabase
+
+  // Get all sessions in enrolled internships.
+  // NOTE: filter hidden in JS, not via .eq('is_hidden', false), because
+  // older rows may have is_hidden = NULL which .eq() would wrongly exclude.
+  const { data: allSessions } = await supabase
     .from('sessions')
     .select('id, title, level_id, is_hidden, internship_id, internships:internship_id (title)')
-    .in('internship_id', internshipIds)
-    .eq('is_hidden', false);
+    .in('internship_id', internshipIds);
 
-  const { data: allSessions } = await sessionsQuery;
-
-  // Filter to sessions the student can access by level
+  // Filter to sessions the student can access: not hidden (NULL = visible) + level reached
   const visibleSessions = (allSessions ?? []).filter((s: any) =>
-    !s.level_id || accessibleLevelIds.includes(s.level_id)
+    s.is_hidden !== true &&                              // NULL or false → visible
+    (!s.level_id || accessibleLevelIds.includes(s.level_id))
   );
   const sessionIds = visibleSessions.map((s: any) => s.id);
   const sessionMap = new Map(visibleSessions.map((s: any) => [s.id, s]));
@@ -61,7 +62,7 @@ export default async function StudentQuizzesPage() {
     .in('session_id', sessionIds)
     .order('starts_at', { ascending: false });
 
-  const visibleQuizzes = (quizzes ?? []).filter((q: any) => !q.is_hidden);
+  const visibleQuizzes = (quizzes ?? []).filter((q: any) => q.is_hidden !== true);
 
   // Fetch my responses to compute progress
   const quizIds = visibleQuizzes.map((q: any) => q.id);

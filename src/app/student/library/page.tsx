@@ -58,7 +58,7 @@ export default async function StudentLibraryPage({
         'id, title, session_type, scheduled_at, recording_url, internship_id, internships:internship_id (title)',
       )
       .in('internship_id', internshipIds)
-      .eq('is_hidden', false)
+      .or('is_hidden.is.null,is_hidden.eq.false')
       .order('scheduled_at', { ascending: false });
 
     // All materials linked to those sessions

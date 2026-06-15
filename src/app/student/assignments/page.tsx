@@ -21,7 +21,7 @@ export default async function StudentAssignmentsPage() {
       .from('assignments')
       .select('id, title, kind, max_score, due_at, level_id, internships:internship_id (title)')
       .in('internship_id', internshipIds)
-      .eq('is_hidden', false)
+      .or('is_hidden.is.null,is_hidden.eq.false')
       .or(levelOrFilter(access.levelIds))
       .order('due_at', { ascending: false, nullsFirst: false });
     assignments = data ?? [];

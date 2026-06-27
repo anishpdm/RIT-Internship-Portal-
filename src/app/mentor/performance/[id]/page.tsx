@@ -111,6 +111,7 @@ export default async function MentorInternshipPerformancePage({
         quiz_score: quizPct,
         quiz_correct: quiz?.correct ?? 0,
         quiz_answered: quiz?.answered ?? 0,
+        quiz_total: quiz?.total ?? 0,
         combined,
       };
     })

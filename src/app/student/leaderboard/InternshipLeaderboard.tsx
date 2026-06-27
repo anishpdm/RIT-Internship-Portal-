@@ -72,11 +72,14 @@ export default function InternshipLeaderboard({
       };
     }
 
-    // Level view — sort by that level's score, only show students who reached it
+    // Level view — sort by that level's combined score (95% assignments + 5% quiz)
     const withLevelScore = rankedRows
       .map(r => {
         const ls = allLevelScores.get(r.student_id)?.get(selectedLevel);
-        return { ...r, _levelScore: ls?.level_score ?? 0, _reached: ls?.reached ?? false, _graded: ls?.graded_count ?? 0, _total: ls?.total_count ?? 0 };
+        const levelAssignment = ls?.level_score ?? 0;
+        const quizPct = Number(r.quiz_score ?? 0);
+        const levelCombined = levelAssignment * 0.95 + quizPct * 0.05;
+        return { ...r, _levelScore: levelCombined, _levelAssignment: levelAssignment, _reached: ls?.reached ?? false, _graded: ls?.graded_count ?? 0, _total: ls?.total_count ?? 0 };
       })
       .filter(r => r._reached)
       .sort((a, b) => b._levelScore - a._levelScore);
@@ -241,7 +244,7 @@ export default function InternshipLeaderboard({
               Level {selectedLevel}{lv.title ? ` — ${lv.title}` : ''} · {displayRows.length} students reached
             </p>
             <p className="text-xs" style={{ color: 'var(--ink-500)' }}>
-              Sorted by Level {selectedLevel} assignment score · Pass threshold: {threshold}%
+              Score = 95% Level {selectedLevel} assignments + 5% quiz
             </p>
           </div>
         </div>

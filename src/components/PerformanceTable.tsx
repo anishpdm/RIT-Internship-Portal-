@@ -35,7 +35,18 @@ export default function PerformanceTable({
     return [...rows]
       .map(r => {
         const ls = levelScoreMap[r.student_id]?.[selectedLevel];
-        return { ...r, _levelScore: ls?.level_score ?? 0, _reached: ls?.reached ?? false, _graded: ls?.graded_count ?? 0, _total: ls?.total_count ?? 0 };
+        const levelAssignment = ls?.level_score ?? 0;
+        const quizPct = Number(r.quiz_score ?? 0);
+        // Combined level score: 95% level assignments + 5% quiz
+        const levelCombined = levelAssignment * 0.95 + quizPct * 0.05;
+        return {
+          ...r,
+          _levelAssignment: levelAssignment,
+          _levelScore: levelCombined,
+          _reached: ls?.reached ?? false,
+          _graded: ls?.graded_count ?? 0,
+          _total: ls?.total_count ?? 0,
+        };
       })
       .filter(r => r._reached)
       .sort((a, b) => b._levelScore - a._levelScore)
@@ -76,7 +87,7 @@ export default function PerformanceTable({
         <div className="rounded-xl px-4 py-2.5 mb-4 flex items-center gap-2"
           style={{ background: 'rgba(99,102,241,.07)', border: '1px solid rgba(99,102,241,.2)' }}>
           <span className="text-sm font-semibold" style={{ color: 'var(--accent)' }}>
-            Level {selectedLevel}{lv.title ? ` — ${lv.title}` : ''} · sorted by L{selectedLevel} score · pass threshold: {lv.pass_threshold}%
+            Level {selectedLevel}{lv.title ? ` — ${lv.title}` : ''} · score = 95% Level {selectedLevel} assignments + 5% quiz
           </span>
           <span className="ml-auto text-xs pill pill-accent">{displayRows.length} reached</span>
         </div>
@@ -101,7 +112,6 @@ export default function PerformanceTable({
                 {!selectedLevel && levels.length > 0 && <th style={{ textAlign: 'center', minWidth: 180 }}>Per-level</th>}
                 {selectedLevel && <th style={{ textAlign: 'right' }}>Quiz (overall)</th>}
                 {selectedLevel && <th style={{ textAlign: 'right' }}>Graded</th>}
-                {selectedLevel && <th style={{ textAlign: 'right' }}>Pass?</th>}
                 <th style={{ textAlign: 'right', minWidth: 130 }}>
                   {selectedLevel ? `L${selectedLevel} Score` : 'Combined ▾'}
                 </th>
@@ -214,14 +224,6 @@ export default function PerformanceTable({
                     {selectedLevel && (
                       <td style={{ textAlign: 'right' }}>
                         <span className="font-mono text-sm">{r._graded}/{r._total}</span>
-                      </td>
-                    )}
-
-                    {selectedLevel && lv && (
-                      <td style={{ textAlign: 'right' }}>
-                        {score >= lv.pass_threshold
-                          ? <span className="pill pill-green" style={{ fontSize: '.65rem' }}>✓ Pass</span>
-                          : <span className="pill pill-red" style={{ fontSize: '.65rem' }}>Below</span>}
                       </td>
                     )}
 

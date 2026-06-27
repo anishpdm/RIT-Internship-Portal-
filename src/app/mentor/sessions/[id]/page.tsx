@@ -191,6 +191,9 @@ export default async function MentorSessionDetailPage({
             <Link href={`/mentor/sessions/${session.id}/quiz`} className="btn btn-secondary">
               <Zap size={14} /> Quiz
             </Link>
+            <Link href={`/mentor/sessions/${session.id}/quiz/results`} className="btn btn-secondary">
+              <Clock size={14} /> Quiz results
+            </Link>
             <Link href={`/mentor/sessions/${session.id}/edit`} className="btn btn-secondary">
               <Pencil size={14} /> Edit
             </Link>

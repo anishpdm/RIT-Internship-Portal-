@@ -14,10 +14,10 @@ export default async function QuizResultsPage({ params }: { params: { id: string
   const isAdmin = me.profile.role === 'admin';
   const basePath = isAdmin ? 'admin' : 'mentor';
 
-  // Session + internship
+  // Session + internship (include level_id for level-aware participation count)
   const { data: session } = await admin
     .from('sessions')
-    .select('id, title, internship_id, internships:internship_id (title)')
+    .select('id, title, internship_id, level_id, internships:internship_id (title)')
     .eq('id', params.id)
     .single();
   if (!session) notFound();
@@ -27,6 +27,14 @@ export default async function QuizResultsPage({ params }: { params: { id: string
       .from('mentor_assignments').select('id')
       .eq('mentor_id', me.userId).eq('internship_id', session.internship_id).maybeSingle();
     if (!ma) notFound();
+  }
+
+  // Resolve the session's level number (so we only count students who reached it)
+  let sessionLevelNumber: number | null = null;
+  if (session.level_id) {
+    const { data: lv } = await admin
+      .from('levels').select('level_number').eq('id', session.level_id).single();
+    sessionLevelNumber = lv?.level_number ?? null;
   }
 
   // Quizzes for this session
@@ -49,12 +57,19 @@ export default async function QuizResultsPage({ params }: { params: { id: string
     );
   }
 
-  // Enrolled students
-  const { data: enrollments } = await admin
+  // Enrolled students — filtered by level when the session is level-gated.
+  // A Level 2 quiz only counts students who have reached Level 2+.
+  let enrollmentsQuery = admin
     .from('enrollments')
-    .select('student_id, profiles:student_id (full_name, email)')
+    .select('student_id, current_level, profiles:student_id (full_name, email)')
     .eq('internship_id', session.internship_id)
     .neq('status', 'filtered');
+
+  if (sessionLevelNumber !== null) {
+    enrollmentsQuery = enrollmentsQuery.gte('current_level', sessionLevelNumber);
+  }
+
+  const { data: enrollments } = await enrollmentsQuery;
   const studentMap = new Map<string, any>(
     (enrollments ?? []).map((e: any) => [e.student_id, e.profiles]),
   );
@@ -139,6 +154,11 @@ export default async function QuizResultsPage({ params }: { params: { id: string
                   <span className="pill pill-green">{attempted} attempted</span>
                   <span className="pill">{totalStudents - attempted} didn't</span>
                   <span className="pill pill-accent">{Math.round(totalStudents ? (attempted/totalStudents)*100 : 0)}% participation</span>
+                  {sessionLevelNumber !== null && (
+                    <span className="pill" style={{ background: 'rgba(99,102,241,.15)', color: 'var(--accent)' }}>
+                      Level {sessionLevelNumber}+ only · {totalStudents} eligible
+                    </span>
+                  )}
                 </div>
               </div>
             </div>

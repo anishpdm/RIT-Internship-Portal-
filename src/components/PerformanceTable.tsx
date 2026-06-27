@@ -99,13 +99,14 @@ export default function PerformanceTable({
                 {!selectedLevel && <th style={{ textAlign: 'right' }}>Assignments</th>}
                 {!selectedLevel && <th style={{ textAlign: 'right' }}>Quiz</th>}
                 {!selectedLevel && levels.length > 0 && <th style={{ textAlign: 'center', minWidth: 180 }}>Per-level</th>}
+                {selectedLevel && <th style={{ textAlign: 'right' }}>Quiz (overall)</th>}
                 {selectedLevel && <th style={{ textAlign: 'right' }}>Graded</th>}
                 {selectedLevel && <th style={{ textAlign: 'right' }}>Pass?</th>}
                 <th style={{ textAlign: 'right', minWidth: 130 }}>
                   {selectedLevel ? `L${selectedLevel} Score` : 'Combined ▾'}
                 </th>
-                {!selectedLevel && <th style={{ textAlign: 'right' }}>Attendance</th>}
-                {!selectedLevel && <th style={{ textAlign: 'right' }}>Submitted</th>}
+                <th style={{ textAlign: 'right' }}>Attendance</th>
+                <th style={{ textAlign: 'right' }}>Submitted</th>
               </tr>
             </thead>
             <tbody>
@@ -201,6 +202,17 @@ export default function PerformanceTable({
 
                     {selectedLevel && (
                       <td style={{ textAlign: 'right' }}>
+                        {(r.quiz_total ?? 0) > 0 ? (
+                          <div>
+                            <span className="font-mono text-sm">{Number(r.quiz_score ?? 0).toFixed(0)}%</span>
+                            <p className="text-xs" style={{ color: 'var(--ink-500)' }}>{r.quiz_correct}/{r.quiz_total}</p>
+                          </div>
+                        ) : <span style={{ color: 'var(--ink-300)' }}>—</span>}
+                      </td>
+                    )}
+
+                    {selectedLevel && (
+                      <td style={{ textAlign: 'right' }}>
                         <span className="font-mono text-sm">{r._graded}/{r._total}</span>
                       </td>
                     )}
@@ -220,19 +232,15 @@ export default function PerformanceTable({
                       </div>
                     </td>
 
-                    {!selectedLevel && (
-                      <td style={{ textAlign: 'right' }}>
-                        <span className="font-mono text-sm">{attPct}%</span>
-                        <p className="text-xs" style={{ color: 'var(--ink-500)' }}>{attended}/{totalSessions}</p>
-                      </td>
-                    )}
+                    <td style={{ textAlign: 'right' }}>
+                      <span className="font-mono text-sm">{attPct}%</span>
+                      <p className="text-xs" style={{ color: 'var(--ink-500)' }}>{attended}/{totalSessions}</p>
+                    </td>
 
-                    {!selectedLevel && (
-                      <td style={{ textAlign: 'right' }}>
-                        <span className="font-mono text-sm">{subPct}%</span>
-                        <p className="text-xs" style={{ color: 'var(--ink-500)' }}>{submitted}/{totalAssignments}</p>
-                      </td>
-                    )}
+                    <td style={{ textAlign: 'right' }}>
+                      <span className="font-mono text-sm">{subPct}%</span>
+                      <p className="text-xs" style={{ color: 'var(--ink-500)' }}>{submitted}/{totalAssignments}</p>
+                    </td>
                   </tr>
                 );
               })}
